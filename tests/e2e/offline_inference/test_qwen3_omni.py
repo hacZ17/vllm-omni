@@ -106,11 +106,10 @@ def test_structured_multistage_config_reaches_runtime(omni_runner, offline_clien
     assert thinker_vllm.cache_config.gpu_memory_utilization == 0.9
     assert talker_vllm.cache_config.gpu_memory_utilization == 0.6
     assert code2wav_vllm.cache_config.gpu_memory_utilization == 0.1
-    # CUDA V1 turn serving enables the Thinker prefix cache (#9203).
-    # The ROCm, NPU, MUSA, and XPU blocks in qwen3_omni_moe.yaml keep it
-    # off. Talker and Code2Wav stay off on every platform.
-    thinker_prefix_caching = current_omni_platform.is_cuda()
-    assert thinker_vllm.cache_config.enable_prefix_caching is thinker_prefix_caching
+    # Platform overrides are already reflected in the resolved stage config.
+    # Verify that startup projection preserves that value in vLLM's runtime
+    # config instead of restating each platform's policy here.
+    assert thinker_vllm.cache_config.enable_prefix_caching is thinker.cache_config.enable_prefix_caching
     assert talker_vllm.cache_config.enable_prefix_caching is False
     assert code2wav_vllm.cache_config.enable_prefix_caching is False
     assert all(config.model_config.trust_remote_code is True for config in engine.stage_vllm_configs)
