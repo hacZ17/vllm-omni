@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import ast
 from pathlib import Path
+from typing import Any, cast
 
 import pytest
 
@@ -88,7 +89,7 @@ def test_qwen_hard_oom_uses_free_memory_ceiling_and_eager_params() -> None:
 
     for class_name in ("GpuOomErrorContract", "GpuOomLarge", "GpuOomConcurrent"):
         assert _server_set(class_name) == "oom"
-    assert _server_set("GpuOomRecovery") == "default"
+    assert _server_set("GpuOomRecovery") == "oom"
 
     functions = {node.name: node for node in oom_tree.body if isinstance(node, ast.FunctionDef)}
     starter = functions["_start_hard_oom"]
@@ -103,6 +104,93 @@ def test_qwen_hard_oom_uses_free_memory_ceiling_and_eager_params() -> None:
     ]
     assert len(inject_calls) == 1
     assert all(keyword.arg != "max_free_bytes" for keyword in inject_calls[0].keywords)
+
+
+def _class_assignment(path: Path, class_name: str, name: str) -> ast.AST | None:
+    tree = ast.parse(path.read_text(encoding="utf-8"))
+    for node in tree.body:
+        if not isinstance(node, ast.ClassDef) or node.name != class_name:
+            continue
+        for statement in node.body:
+            if isinstance(statement, ast.Assign) and any(
+                isinstance(target, ast.Name) and target.id == name for target in statement.targets
+            ):
+                return statement.value
+    return None
+
+
+def _literal_class_assignment(path: Path, class_name: str, name: str) -> object:
+    value = _class_assignment(path, class_name, name)
+    assert value is not None, f"{class_name}.{name} is missing"
+    return ast.literal_eval(value)
+
+
+def test_qwen_oom_recovery_forces_hip_eager_and_leaves_cuda_and_wan_unchanged(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import torch
+    import yaml
+
+    from tests.dfx.reliability import helpers
+    from tests.helpers.stage_config import modify_stage_config
+
+    qwen_path = RELIABILITY_DIR / "test_qwen3_omni.py"
+    qwen_tree = ast.parse(qwen_path.read_text(encoding="utf-8"))
+    scenarios = _literal_class_assignment(qwen_path, "Qwen3Omni", "scenarios")
+    stage_ids = _literal_class_assignment(qwen_path, "Qwen3Omni", "eager_oom_stage_ids")
+    recover = _assignment_value(qwen_tree, "OOM_RECOVER_INJECTION_CONFIG")
+    assert isinstance(recover, ast.Dict)
+    recover_keys = [key.value for key in recover.keys if isinstance(key, ast.Constant)]
+    oom_source = RELIABILITY_DIR / "scenarios" / "oom.py"
+    server_set = _literal_class_assignment(oom_source, "GpuOomRecovery", "server_set")
+    assert isinstance(scenarios, list)
+    assert isinstance(server_set, str)
+    assert stage_ids == (0, 1)
+    assert isinstance(stage_ids, tuple)
+    assert "max_free_bytes" not in recover_keys
+    ratio = next(
+        value.value
+        for key, value in zip(recover.keys, recover.values)
+        if isinstance(key, ast.Constant) and key.value == "target_mem_ratio" and isinstance(value, ast.Constant)
+    )
+    assert ratio == 0.95
+    qwen_scenarios = cast(list[dict[str, Any]], scenarios)
+    qwen_stage_ids = cast(tuple[int, ...], stage_ids)
+    assert {item["test_name"] for item in qwen_scenarios} == {
+        "qwen3_omni_reliability_async_chunk",
+        "qwen3_omni_reliability_default",
+    }
+
+    model = helpers.FaultModel()
+    model.model_id = "qwen3_omni"
+    model.scenarios = qwen_scenarios
+    model.eager_oom_stage_ids = qwen_stage_ids
+    deploy = Path("vllm_omni/deploy/qwen3_omni_moe.yaml")
+
+    monkeypatch.setattr(torch.version, "hip", "6.0.0")
+    hip_scenarios = model.scenarios_for_server_set(server_set)
+    assert [item["test_name"] for item in hip_scenarios] == [item["test_name"] for item in qwen_scenarios]
+    for scenario in hip_scenarios:
+        rendered = modify_stage_config(str(deploy), scenario["server_params"]["update"], None)
+        loaded = yaml.safe_load(Path(rendered).read_text(encoding="utf-8"))
+        eager = {int(stage["stage_id"]): stage.get("enforce_eager") for stage in loaded["stages"]}
+        assert eager[0] is True
+        assert eager[1] is True
+        assert eager[2] is False
+
+    monkeypatch.setattr(torch.version, "hip", None)
+    cuda_scenarios = model.scenarios_for_server_set(server_set)
+    assert cuda_scenarios == qwen_scenarios
+    assert all("update" not in item["server_params"] for item in cuda_scenarios)
+
+    wan_path = RELIABILITY_DIR / "test_wan22.py"
+    assert _class_assignment(wan_path, "Wan22", "eager_oom_stage_ids") is None
+    wan = helpers.FaultModel()
+    wan.model_id = "wan22"
+    wan_scenarios = _literal_class_assignment(wan_path, "Wan22", "scenarios")
+    assert isinstance(wan_scenarios, list)
+    wan.scenarios = cast(list[dict[str, Any]], wan_scenarios)
+    assert wan.scenarios_for_server_set("oom") == wan.scenarios_for_server_set("default")
 
 
 def test_nightly_pipeline_does_not_own_fault_injection_files() -> None:
