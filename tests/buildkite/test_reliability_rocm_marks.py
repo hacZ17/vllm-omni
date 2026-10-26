@@ -56,16 +56,33 @@ def test_fault_injection_cases_declare_mi325(filename: str, num_cards: int) -> N
     assert "connection" in keywords
 
 
-def test_qwen_hard_oom_uses_free_memory_ceiling_and_eager_params() -> None:
+def test_qwen_oom_uses_free_memory_ceiling_and_eager_params() -> None:
     case_source = (RELIABILITY_DIR / "test_qwen3_omni.py").read_text(encoding="utf-8")
     case_tree = ast.parse(case_source)
+    case_functions = {node.name: node for node in case_tree.body if isinstance(node, ast.FunctionDef)}
     hard_config = next(
         node for node in case_tree.body if isinstance(node, ast.FunctionDef) and node.name == "_hard_oom_config"
     )
     assert any(isinstance(node, ast.Constant) and node.value == "max_free_bytes" for node in ast.walk(hard_config))
     recover = _assignment_value(case_tree, "OOM_RECOVER_INJECTION_CONFIG")
     assert isinstance(recover, ast.Dict)
-    assert all(not (isinstance(key, ast.Constant) and key.value == "max_free_bytes") for key in recover.keys)
+    recover_items = {
+        key.value: value
+        for key, value in zip(recover.keys, recover.values)
+        if isinstance(key, ast.Constant) and isinstance(key.value, str)
+    }
+    recover_ceiling = recover_items["max_free_bytes"]
+    assert isinstance(recover_ceiling, ast.Call)
+    assert isinstance(recover_ceiling.func, ast.Name)
+    assert recover_ceiling.func.id == "_recover_oom_max_free_bytes"
+
+    ceiling_helper = case_functions["_recover_oom_max_free_bytes"]
+    return_node = next(node for node in ast.walk(ceiling_helper) if isinstance(node, ast.Return))
+    assert isinstance(return_node.value, ast.IfExp)
+    assert ast.unparse(return_node.value.body) == "32 * 1024 * 1024"
+    assert isinstance(return_node.value.orelse, ast.Constant)
+    assert return_node.value.orelse.value is None
+    assert "torch.version" in ast.unparse(return_node.value.test)
     assert "reliability_scenarios_for_eager_oom" in (RELIABILITY_DIR / "helpers.py").read_text(encoding="utf-8")
     assert "eager_oom_stage_ids = (0, 1)" in case_source
 
@@ -103,7 +120,12 @@ def test_qwen_hard_oom_uses_free_memory_ceiling_and_eager_params() -> None:
         if isinstance(node, ast.Call) and isinstance(node.func, ast.Name) and node.func.id == "inject_gpu_oom"
     ]
     assert len(inject_calls) == 1
-    assert all(keyword.arg != "max_free_bytes" for keyword in inject_calls[0].keywords)
+    max_free_keyword = next(keyword for keyword in inject_calls[0].keywords if keyword.arg == "max_free_bytes")
+    assert isinstance(max_free_keyword.value, ast.Subscript)
+    assert isinstance(max_free_keyword.value.value, ast.Name)
+    assert max_free_keyword.value.value.id == "OOM_RECOVER_INJECTION_CONFIG"
+    assert isinstance(max_free_keyword.value.slice, ast.Constant)
+    assert max_free_keyword.value.slice.value == "max_free_bytes"
 
 
 def _class_assignment(path: Path, class_name: str, name: str) -> ast.AST | None:
@@ -140,20 +162,21 @@ def test_qwen_oom_recovery_forces_hip_eager_and_leaves_cuda_and_wan_unchanged(
     stage_ids = _literal_class_assignment(qwen_path, "Qwen3Omni", "eager_oom_stage_ids")
     recover = _assignment_value(qwen_tree, "OOM_RECOVER_INJECTION_CONFIG")
     assert isinstance(recover, ast.Dict)
-    recover_keys = [key.value for key in recover.keys if isinstance(key, ast.Constant)]
+    recover_items = {
+        key.value: value
+        for key, value in zip(recover.keys, recover.values)
+        if isinstance(key, ast.Constant) and isinstance(key.value, str)
+    }
     oom_source = RELIABILITY_DIR / "scenarios" / "oom.py"
     server_set = _literal_class_assignment(oom_source, "GpuOomRecovery", "server_set")
     assert isinstance(scenarios, list)
     assert isinstance(server_set, str)
     assert stage_ids == (0, 1)
     assert isinstance(stage_ids, tuple)
-    assert "max_free_bytes" not in recover_keys
-    ratio = next(
-        value.value
-        for key, value in zip(recover.keys, recover.values)
-        if isinstance(key, ast.Constant) and key.value == "target_mem_ratio" and isinstance(value, ast.Constant)
-    )
-    assert ratio == 0.95
+    assert isinstance(recover_items["max_free_bytes"], ast.Call)
+    ratio = recover_items["target_mem_ratio"]
+    assert isinstance(ratio, ast.Constant)
+    assert ratio.value == 0.95
     qwen_scenarios = cast(list[dict[str, Any]], scenarios)
     qwen_stage_ids = cast(tuple[int, ...], stage_ids)
     assert {item["test_name"] for item in qwen_scenarios} == {
