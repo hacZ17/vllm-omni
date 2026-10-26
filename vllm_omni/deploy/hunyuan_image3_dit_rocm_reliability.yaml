@@ -1,0 +1,23 @@
+# ROCm process-lifecycle reliability for HunyuanImage-3 DiT.
+#
+# The base deploy keeps expert parallel enabled. That TP=4 path is what the
+# weekly warmup timed out on, so fault injection uses this overlay. The
+# expert-parallel baseline job keeps hunyuan_image3_dit.yaml.
+base_config: hunyuan_image3_dit.yaml
+
+stages:
+  - stage_id: 0
+    parallel_config:
+      pipeline_parallel_size: 1
+      data_parallel_size: 1
+      tensor_parallel_size: 4
+      enable_expert_parallel: false
+      sequence_parallel_size: 1
+      ulysses_degree: 1
+      ring_degree: 1
+      allgather_degree: 1
+      cfg_parallel_size: 1
+      vae_patch_parallel_size: 1
+      use_hsdp: false
+      hsdp_shard_size: -1
+      hsdp_replicate_size: 1

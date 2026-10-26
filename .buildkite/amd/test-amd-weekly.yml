@@ -1,5 +1,7 @@
 # AMD MI300 weekly reliability. Nightly owns functional and accuracy smokes.
 # This file owns fault injection and invalid-parameter contracts.
+# HunyuanImage process-kill coverage uses the ROCm expert-parallel-off deploy.
+# One separate job keeps the full-model expert-parallel path.
 # main + WEEKLY=1 selects it. A PR weekly-test label selects it.
 # NIGHTLY=1 and NON_CRITICAL=1 do not.
 
@@ -59,3 +61,45 @@ steps:
             pytest -s -v
             tests/dfx/reliability/invalid_param_test/test_invalid_omni_chat.py
             -m "slow and rocm and MI325 and cards_2"
+
+  - group: "HunyuanImage Expert Parallel"
+    steps:
+      - label: "HunyuanImage Expert Parallel Baseline"
+        agent_pool: mi300_4
+        depends_on: amd-build
+        mirror_hardwares: [amdproduction]
+        grade: NonBlocking
+        timeout_in_minutes: 90
+        artifact_paths:
+          - artifacts/rocm-hunyuan-image-ep/**/*
+        commands:
+          - |
+            export ROCM_HUNYUAN_EP_ARTIFACT_DIR="$${BUILDKITE_BUILD_CHECKOUT_PATH:?}/artifacts/rocm-hunyuan-image-ep"
+            mkdir -p "$$ROCM_HUNYUAN_EP_ARTIFACT_DIR"
+            pytest --collect-only -q \
+              tests/dfx/reliability/test_hunyuan_image_ep_baseline.py \
+              -m "full_model and slow and diffusion and rocm and MI325 and cards_4" \
+              > "$$ROCM_HUNYUAN_EP_ARTIFACT_DIR/collection.txt"
+            count=$$(awk 'index($$0, "test_hunyuan_image_ep_baseline.py::") { n++ } END { print n + 0 }' \
+              "$$ROCM_HUNYUAN_EP_ARTIFACT_DIR/collection.txt")
+            if [[ "$$count" != 1 ]]; then
+              echo "Expected exactly one HunyuanImage expert-parallel baseline node, found $$count." >&2
+              cat "$$ROCM_HUNYUAN_EP_ARTIFACT_DIR/collection.txt" >&2
+              exit 5
+            fi
+            if ! grep -Fq "test_hunyuan_image_rocm_ep_baseline" \
+              "$$ROCM_HUNYUAN_EP_ARTIFACT_DIR/collection.txt"; then
+              echo "HunyuanImage expert-parallel baseline node was not collected." >&2
+              cat "$$ROCM_HUNYUAN_EP_ARTIFACT_DIR/collection.txt" >&2
+              exit 5
+            fi
+          - >-
+            timeout --signal=TERM --kill-after=2m 75m
+            pytest -s -v -ra
+            tests/dfx/reliability/test_hunyuan_image_ep_baseline.py
+            -m "full_model and slow and diffusion and rocm and MI325 and cards_4"
+            --junitxml="$$ROCM_HUNYUAN_EP_ARTIFACT_DIR/pytest.xml"
+            2>&1 | tee "$$ROCM_HUNYUAN_EP_ARTIFACT_DIR/pytest.log"
+          - >-
+            tail -n 100 "$$ROCM_HUNYUAN_EP_ARTIFACT_DIR/pytest.log" >
+            "$$ROCM_HUNYUAN_EP_ARTIFACT_DIR/pytest-summary.txt"

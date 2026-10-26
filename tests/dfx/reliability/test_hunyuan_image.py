@@ -22,6 +22,7 @@ from tests.dfx.reliability.scenarios import (
     ProcessKillWorkerWithLoad,
 )
 from tests.helpers.mark import hardware_marks
+from vllm_omni.platforms import current_omni_platform
 
 _IMAGE_FAST_FAIL_HTTP_TIMEOUT_SEC = 30
 _DEPLOY_DIR = Path(__file__).resolve().parents[3] / "vllm_omni" / "deploy"
@@ -58,6 +59,13 @@ def _fast_fail_body(model: str) -> dict[str, Any]:
     }
 
 
+def _reliability_stage_config() -> str:
+    """Use the expert-parallel deploy on CUDA and the ROCm reliability overlay."""
+    if current_omni_platform.is_rocm():
+        return "hunyuan_image3_dit_rocm_reliability.yaml"
+    return "hunyuan_image3_dit.yaml"
+
+
 FAULT_ERROR_KEYWORDS = (
     "oom",
     "out of memory",
@@ -80,7 +88,7 @@ class HunyuanImage(FaultModel):
             "test_name": "hunyuan_image_dit_reliability_default",
             "server_params": {
                 "model": "tencent/HunyuanImage-3.0-Instruct",
-                "stage_config_name": "hunyuan_image3_dit.yaml",
+                "stage_config_name": _reliability_stage_config(),
             },
         }
     ]
