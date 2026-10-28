@@ -1078,7 +1078,9 @@ steps:
           - artifacts/rocm-voxtral-tts-perf/**/*
         commands:
           - export ROCM_VOXTRAL_TTS_PERF_ARTIFACT_DIR="$${BUILDKITE_BUILD_CHECKOUT_PATH:?}/artifacts/rocm-voxtral-tts-perf"
-          - mkdir -p "$$ROCM_VOXTRAL_TTS_PERF_ARTIFACT_DIR/benchmark-results"
+          - |
+            rm -rf "$$ROCM_VOXTRAL_TTS_PERF_ARTIFACT_DIR"
+            mkdir -p "$$ROCM_VOXTRAL_TTS_PERF_ARTIFACT_DIR/benchmark-results"
           # Latency, throughput, and stress. No MI325 numeric baseline yet.
           - |
             nodes=(
@@ -1130,7 +1132,7 @@ steps:
             tail -n 100 "$$ROCM_VOXTRAL_TTS_PERF_ARTIFACT_DIR/pytest.log" > \
               "$$ROCM_VOXTRAL_TTS_PERF_ARTIFACT_DIR/pytest-summary.txt"
             if [[ "$$status" -eq 0 ]]; then
-              if python -c 'import sys, xml.etree.ElementTree as ET
+              if python3 -c 'import sys, xml.etree.ElementTree as ET
             root = ET.parse(sys.argv[1]).getroot()
             suites = [root] if root.tag == "testsuite" else list(root.findall("testsuite"))
             tests = sum(int(suite.attrib.get("tests", "0")) for suite in suites)
