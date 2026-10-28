@@ -128,44 +128,72 @@ steps:
         mirror_hardwares: [amdproduction]
         grade: NonBlocking
         timeout_in_minutes: 120
+        source_file_dependencies: omni_mimo_audio_function
         artifact_paths:
           - artifacts/rocm-mimo-audio-weekly/**/*
         commands:
+          - export ROCM_MIMO_WEEKLY_ARTIFACT_DIR="$${BUILDKITE_BUILD_CHECKOUT_PATH:?}/artifacts/rocm-mimo-audio-weekly"
+          - mkdir -p "$$ROCM_MIMO_WEEKLY_ARTIFACT_DIR"
           - |
-            export ROCM_MIMO_WEEKLY_ARTIFACT_DIR="$${BUILDKITE_BUILD_CHECKOUT_PATH:?}/artifacts/rocm-mimo-audio-weekly"
-            mkdir -p "$$ROCM_MIMO_WEEKLY_ARTIFACT_DIR"
-            pytest --collect-only -q \
-              tests/e2e/online_serving/test_mimo_audio_expansion.py \
+            node="tests/e2e/online_serving/test_mimo_audio_expansion.py::test_text_to_text_001"
+            pytest --collect-only -q "$$node" \
+              --shard-id=0 --num-shards=1 \
               -m "slow and rocm and MI325 and omni and cards_1" \
               --run-level full_model \
               > "$$ROCM_MIMO_WEEKLY_ARTIFACT_DIR/collection.txt"
-            count=$$(awk 'index($$0, "test_mimo_audio_expansion.py::") { n++ } END { print n + 0 }' \
+            count=$$(awk '/^tests\/.*::/ { n++ } END { print n + 0 }' \
               "$$ROCM_MIMO_WEEKLY_ARTIFACT_DIR/collection.txt")
-            if [[ "$$count" != 2 ]]; then
-              echo "Expected exactly 2 MiMo-Audio ROCm nodes, found $$count." >&2
+            if [[ "$$count" != 1 ]]; then
+              echo "Expected exactly one MiMo-Audio ROCm node, found $$count." >&2
               cat "$$ROCM_MIMO_WEEKLY_ARTIFACT_DIR/collection.txt" >&2
               exit 5
             fi
-            for node in test_text_to_text_001 test_audio_to_text_audio_001; do
-              if ! grep -Fq "test_mimo_audio_expansion.py::$$node" \
-                "$$ROCM_MIMO_WEEKLY_ARTIFACT_DIR/collection.txt"; then
-                echo "MiMo-Audio node was not collected: $$node" >&2
-                cat "$$ROCM_MIMO_WEEKLY_ARTIFACT_DIR/collection.txt" >&2
-                exit 5
+            if ! grep -Fq "$$node" "$$ROCM_MIMO_WEEKLY_ARTIFACT_DIR/collection.txt"; then
+              echo "MiMo-Audio node was not collected: $$node" >&2
+              cat "$$ROCM_MIMO_WEEKLY_ARTIFACT_DIR/collection.txt" >&2
+              exit 5
+            fi
+          - |
+            if (
+              trap - ERR
+              set +e
+              node="tests/e2e/online_serving/test_mimo_audio_expansion.py::test_text_to_text_001"
+              timeout --signal=TERM --kill-after=2m 105m \
+                pytest -s -v -ra "$$node" \
+                --shard-id=0 --num-shards=1 \
+                -m "slow and rocm and MI325 and omni and cards_1" \
+                --run-level full_model --durations=20 \
+                --junitxml="$$ROCM_MIMO_WEEKLY_ARTIFACT_DIR/pytest.xml" \
+                2>&1 | tee "$$ROCM_MIMO_WEEKLY_ARTIFACT_DIR/pytest.log"
+              exit "$${PIPESTATUS[0]}"
+            ); then
+              status=0
+            else
+              status=$$?
+            fi
+            tail -n 100 "$$ROCM_MIMO_WEEKLY_ARTIFACT_DIR/pytest.log" > \
+              "$$ROCM_MIMO_WEEKLY_ARTIFACT_DIR/pytest-summary.txt"
+            if [[ "$$status" -eq 0 ]]; then
+              if python -c 'import sys, xml.etree.ElementTree as ET
+            root = ET.parse(sys.argv[1]).getroot()
+            suites = [root] if root.tag == "testsuite" else list(root.findall("testsuite"))
+            tests = sum(int(suite.attrib.get("tests", "0")) for suite in suites)
+            skipped = sum(int(suite.attrib.get("skipped", "0")) for suite in suites)
+            if tests != 1 or skipped != 0:
+                print(
+                    f"Expected exactly one executed MiMo-Audio test; "
+                    f"reported tests={tests}, skipped={skipped}.",
+                    file=sys.stderr,
+                )
+                raise SystemExit(5)
+            ' "$$ROCM_MIMO_WEEKLY_ARTIFACT_DIR/pytest.xml"
+              then
+                status=0
+              else
+                status=$$?
               fi
-            done
-          - >-
-            timeout --signal=TERM --kill-after=2m 105m
-            pytest -s -v -ra
-            tests/e2e/online_serving/test_mimo_audio_expansion.py
-            -m "slow and rocm and MI325 and omni and cards_1"
-            --run-level full_model
-            --durations=20
-            --junitxml="$$ROCM_MIMO_WEEKLY_ARTIFACT_DIR/pytest.xml"
-            2>&1 | tee "$$ROCM_MIMO_WEEKLY_ARTIFACT_DIR/pytest.log"
-          - >-
-            tail -n 100 "$$ROCM_MIMO_WEEKLY_ARTIFACT_DIR/pytest.log" >
-            "$$ROCM_MIMO_WEEKLY_ARTIFACT_DIR/pytest-summary.txt"
+            fi
+            (exit "$$status")
 
       - label: "Ming-flash-omni offline · 4-GPU"
         agent_pool: mi300_4
@@ -173,52 +201,91 @@ steps:
         mirror_hardwares: [amdproduction]
         grade: NonBlocking
         timeout_in_minutes: 180
+        source_file_dependencies: omni_ming_flash_omni_function
         artifact_paths:
           - artifacts/rocm-ming-flash-omni-weekly/**/*
         commands:
+          - export ROCM_MING_WEEKLY_ARTIFACT_DIR="$${BUILDKITE_BUILD_CHECKOUT_PATH:?}/artifacts/rocm-ming-flash-omni-weekly"
+          - mkdir -p "$$ROCM_MING_WEEKLY_ARTIFACT_DIR"
           - |
-            export ROCM_MING_WEEKLY_ARTIFACT_DIR="$${BUILDKITE_BUILD_CHECKOUT_PATH:?}/artifacts/rocm-ming-flash-omni-weekly"
-            mkdir -p "$$ROCM_MING_WEEKLY_ARTIFACT_DIR"
-            pytest --collect-only -q \
-              tests/e2e/offline_inference/test_ming_flash_omni_expansion.py \
+            nodes=(
+              "tests/e2e/offline_inference/test_ming_flash_omni_expansion.py::test_text_to_text"
+              "tests/e2e/offline_inference/test_ming_flash_omni_expansion.py::test_image_to_text"
+              "tests/e2e/offline_inference/test_ming_flash_omni_expansion.py::test_audio_to_text"
+              "tests/e2e/offline_inference/test_ming_flash_omni_expansion.py::test_video_to_text"
+              "tests/e2e/offline_inference/test_ming_flash_omni_expansion.py::test_mixed_to_text"
+              "tests/e2e/offline_inference/test_ming_flash_omni_expansion.py::test_text_to_audio"
+              "tests/e2e/offline_inference/test_ming_flash_omni_expansion.py::test_image_to_audio"
+            )
+            pytest --collect-only -q "$${nodes[@]}" \
+              --shard-id=0 --num-shards=1 \
               -m "slow and rocm and MI325 and omni and cards_4" \
               --run-level full_model \
               > "$$ROCM_MING_WEEKLY_ARTIFACT_DIR/collection.txt"
-            count=$$(awk 'index($$0, "test_ming_flash_omni_expansion.py::") { n++ } END { print n + 0 }' \
+            count=$$(awk '/^tests\/.*::/ { n++ } END { print n + 0 }' \
               "$$ROCM_MING_WEEKLY_ARTIFACT_DIR/collection.txt")
-            if [[ "$$count" != 7 ]]; then
-              echo "Expected exactly 7 Ming-flash-omni offline ROCm nodes, found $$count." >&2
+            if [[ "$$count" != "$${#nodes[@]}" ]]; then
+              echo "Expected exactly $${#nodes[@]} Ming-flash-omni offline ROCm nodes, found $$count." >&2
               cat "$$ROCM_MING_WEEKLY_ARTIFACT_DIR/collection.txt" >&2
               exit 5
             fi
-            for node in \
-              test_text_to_text \
-              test_image_to_text \
-              test_audio_to_text \
-              test_video_to_text \
-              test_mixed_to_text \
-              test_text_to_audio \
-              test_image_to_audio
-            do
-              if ! grep -Fq "test_ming_flash_omni_expansion.py::$$node" \
+            for node in "$${nodes[@]}"; do
+              if ! grep -Fq "$$node" \
                 "$$ROCM_MING_WEEKLY_ARTIFACT_DIR/collection.txt"; then
                 echo "Ming-flash-omni node was not collected: $$node" >&2
                 cat "$$ROCM_MING_WEEKLY_ARTIFACT_DIR/collection.txt" >&2
                 exit 5
               fi
             done
-          - >-
-            timeout --signal=TERM --kill-after=2m 165m
-            pytest -s -v -ra
-            tests/e2e/offline_inference/test_ming_flash_omni_expansion.py
-            -m "slow and rocm and MI325 and omni and cards_4"
-            --run-level full_model
-            --durations=20
-            --junitxml="$$ROCM_MING_WEEKLY_ARTIFACT_DIR/pytest.xml"
-            2>&1 | tee "$$ROCM_MING_WEEKLY_ARTIFACT_DIR/pytest.log"
-          - >-
-            tail -n 100 "$$ROCM_MING_WEEKLY_ARTIFACT_DIR/pytest.log" >
-            "$$ROCM_MING_WEEKLY_ARTIFACT_DIR/pytest-summary.txt"
+          - |
+            if (
+              trap - ERR
+              set +e
+              nodes=(
+                "tests/e2e/offline_inference/test_ming_flash_omni_expansion.py::test_text_to_text"
+                "tests/e2e/offline_inference/test_ming_flash_omni_expansion.py::test_image_to_text"
+                "tests/e2e/offline_inference/test_ming_flash_omni_expansion.py::test_audio_to_text"
+                "tests/e2e/offline_inference/test_ming_flash_omni_expansion.py::test_video_to_text"
+                "tests/e2e/offline_inference/test_ming_flash_omni_expansion.py::test_mixed_to_text"
+                "tests/e2e/offline_inference/test_ming_flash_omni_expansion.py::test_text_to_audio"
+                "tests/e2e/offline_inference/test_ming_flash_omni_expansion.py::test_image_to_audio"
+              )
+              timeout --signal=TERM --kill-after=2m 165m \
+                pytest -s -v -ra "$${nodes[@]}" \
+                --shard-id=0 --num-shards=1 \
+                -m "slow and rocm and MI325 and omni and cards_4" \
+                --run-level full_model --durations=20 \
+                --junitxml="$$ROCM_MING_WEEKLY_ARTIFACT_DIR/pytest.xml" \
+                2>&1 | tee "$$ROCM_MING_WEEKLY_ARTIFACT_DIR/pytest.log"
+              exit "$${PIPESTATUS[0]}"
+            ); then
+              status=0
+            else
+              status=$$?
+            fi
+            tail -n 100 "$$ROCM_MING_WEEKLY_ARTIFACT_DIR/pytest.log" > \
+              "$$ROCM_MING_WEEKLY_ARTIFACT_DIR/pytest-summary.txt"
+            if [[ "$$status" -eq 0 ]]; then
+              if python -c 'import sys, xml.etree.ElementTree as ET
+            root = ET.parse(sys.argv[1]).getroot()
+            suites = [root] if root.tag == "testsuite" else list(root.findall("testsuite"))
+            tests = sum(int(suite.attrib.get("tests", "0")) for suite in suites)
+            skipped = sum(int(suite.attrib.get("skipped", "0")) for suite in suites)
+            if tests != 7 or skipped != 0:
+                print(
+                    f"Expected exactly seven executed Ming-flash-omni offline tests; "
+                    f"reported tests={tests}, skipped={skipped}.",
+                    file=sys.stderr,
+                )
+                raise SystemExit(5)
+            ' "$$ROCM_MING_WEEKLY_ARTIFACT_DIR/pytest.xml"
+              then
+                status=0
+              else
+                status=$$?
+              fi
+            fi
+            (exit "$$status")
 
   - group: "HunyuanImage Expert Parallel"
     steps:
