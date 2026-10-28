@@ -1580,8 +1580,10 @@ def test_voxtral_tts_perf_is_one_nonblocking_nightly_job() -> None:
     step = _find_step("Voxtral TTS Perf", AMD_NIGHTLY_PIPELINE)
     assert step["grade"] == "NonBlocking"
     assert step["agent_pool"] == "mi300_1"
+    assert step["depends_on"] == "amd-build"
     assert step["mirror_hardwares"] == ["amdproduction"]
     assert step["timeout_in_minutes"] == 180
+    assert step["source_file_dependencies"] == "tts_voxtral_tts_perf"
     assert step["env"]["VLLM_ALLOW_LONG_MAX_MODEL_LEN"] == "1"
     assert "VLLM_ROCM_USE_AITER" not in step["env"]
     commands = "\n".join(step["commands"])
@@ -1593,6 +1595,11 @@ def test_voxtral_tts_perf_is_one_nonblocking_nightly_job() -> None:
     assert "pytest.xml" in commands
     assert "tests/dfx/perf/tests/test_tts.json" in commands
     assert "Expected exactly $${#nodes[@]} Voxtral TTS perf nodes" in commands
+    assert commands.count("--shard-id=0 --num-shards=1") == 2
+    assert "Expected exactly three executed Voxtral TTS perf tests" in commands
+    assert "skipped != 0" in commands
+    assert "Expected exactly 3 Voxtral TTS result JSON files" in commands
+    assert "result_test_voxtral_tts_*.json" in commands
     nodes = (
         "test_voxtral_tts-default_voice_latency_seed-tts-text",
         "test_voxtral_tts-default_voice_throughput_seed-tts-text",
@@ -1615,6 +1622,15 @@ def test_voxtral_tts_perf_is_one_nonblocking_nightly_job() -> None:
             baseline = phase.get("baseline")
             if isinstance(baseline, dict):
                 assert "MI325" not in baseline
+    dependencies = yaml.safe_load(
+        Path(".buildkite/common/ci_source_file_dependencies.yml").read_text(encoding="utf-8")
+    )["source_file_dependencies"]["tts_voxtral_tts_perf"]
+    assert "tests/dfx/perf/scripts/run_benchmark.py" in dependencies
+    assert "tests/dfx/perf/tests/test_tts.json" in dependencies
+    assert "vllm_omni/deploy/voxtral_tts.yaml" in dependencies
+    assert "vllm_omni/model_executor/models/voxtral_tts/" in dependencies
+    assert "vllm_omni/transformers_utils/configs/voxtral_tts.py" in dependencies
+    assert "vllm_omni/transformers_utils/parsers/voxtral_tts.py" in dependencies
     for pipeline_path in (AMD_READY_PIPELINE, AMD_MERGE_PIPELINE):
         text = pipeline_path.read_text(encoding="utf-8")
         assert "Voxtral TTS Perf" not in text
