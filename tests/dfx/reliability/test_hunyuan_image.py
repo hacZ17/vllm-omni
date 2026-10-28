@@ -59,11 +59,19 @@ def _fast_fail_body(model: str) -> dict[str, Any]:
     }
 
 
-def _reliability_stage_config() -> str:
-    """Use the expert-parallel deploy on CUDA and the ROCm reliability overlay."""
+def _reliability_server_params() -> dict[str, Any]:
+    """Disable expert parallel only for ROCm fault-injection coverage."""
+    params: dict[str, Any] = {
+        "model": "tencent/HunyuanImage-3.0-Instruct",
+        "stage_config_name": "hunyuan_image3_dit.yaml",
+    }
     if current_omni_platform.is_rocm():
-        return "hunyuan_image3_dit_rocm_reliability.yaml"
-    return "hunyuan_image3_dit.yaml"
+        params["update"] = {
+            "stages": {
+                0: {"parallel_config.enable_expert_parallel": False},
+            }
+        }
+    return params
 
 
 FAULT_ERROR_KEYWORDS = (
@@ -86,10 +94,7 @@ class HunyuanImage(FaultModel):
     scenarios = [
         {
             "test_name": "hunyuan_image_dit_reliability_default",
-            "server_params": {
-                "model": "tencent/HunyuanImage-3.0-Instruct",
-                "stage_config_name": _reliability_stage_config(),
-            },
+            "server_params": _reliability_server_params(),
         }
     ]
     deploy_dir = _DEPLOY_DIR
