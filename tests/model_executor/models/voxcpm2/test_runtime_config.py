@@ -8,6 +8,7 @@ import pytest
 import torch
 from vllm.config.compilation import CUDAGraphMode
 
+import vllm_omni.platforms as platforms_mod
 from vllm_omni.model_executor.models.voxcpm2.runtime_config import _VoxCPM2RuntimeConfig, reject_outer_full_cudagraph
 from vllm_omni.platforms import current_omni_platform
 
@@ -19,11 +20,42 @@ def test_runner_specific_audio_defaults(uses_v2):
     config = _VoxCPM2RuntimeConfig.from_vllm_config(
         SimpleNamespace(model_config=SimpleNamespace(use_v2_model_runner=uses_v2))
     )
-    # Incremental VAE is the CUDA v2 default only. ROCm keeps the v1 profile.
-    incremental = uses_v2 and current_omni_platform.is_cuda()
+    # NPU keeps the v1 audio profile. CUDA and ROCm keep the v2 defaults.
+    incremental = uses_v2 and not current_omni_platform.is_npu()
     assert config.enable_incremental_vae is incremental
     assert config.vae_decode_every == (1 if incremental else 3)
     assert config.audio_emit_every == (3 if incremental else 1)
+
+
+class _AudioPlatform:
+    def __init__(self, *, npu: bool, cuda: bool) -> None:
+        self._npu = npu
+        self._cuda = cuda
+
+    def is_npu(self) -> bool:
+        return self._npu
+
+    def is_cuda(self) -> bool:
+        return self._cuda
+
+
+@pytest.mark.parametrize("is_npu", [False, True])
+@pytest.mark.parametrize("is_cuda", [False, True])
+def test_v2_incremental_vae_disabled_only_on_npu(monkeypatch, is_npu, is_cuda):
+    """v2 incremental VAE stays enabled unless the platform is NPU."""
+    # Patch the backing global. Assigning current_omni_platform would leave a
+    # real module attribute that shadows the lazy lookup after restore.
+    monkeypatch.setattr(
+        platforms_mod,
+        "_current_omni_platform",
+        _AudioPlatform(npu=is_npu, cuda=is_cuda),
+    )
+    config = _VoxCPM2RuntimeConfig.from_vllm_config(
+        SimpleNamespace(model_config=SimpleNamespace(use_v2_model_runner=True))
+    )
+    assert config.enable_incremental_vae is not is_npu
+    assert config.vae_decode_every == (3 if is_npu else 1)
+    assert config.audio_emit_every == (1 if is_npu else 3)
 
 
 def test_mrv2_explicit_legacy_audio_override():
