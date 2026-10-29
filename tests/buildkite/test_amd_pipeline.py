@@ -3467,3 +3467,37 @@ def test_pause_keep_two_ranks_ready_pins_the_mi325_node() -> None:
     assert "cards_4" not in command
     assert "test_diffusion_worker.py" not in command
     assert 'res={"cuda": "L4", "rocm": "MI325"}, num_cards=2' in source
+
+
+_VERL_GENERATE_READY_MARKER = "core_model and diffusion and rocm and MI325 and cards_1"
+_VERL_GENERATE_READY_NODE = "tests/e2e/features/rlhf_test/test_verl_omni_e2e.py::test_generate"
+
+
+def test_verl_generate_ready_pins_the_mi325_node() -> None:
+    """READY fail-closes on the one-card VeRL-Omni generate case."""
+    step = _find_step("ROCm · VeRL-Omni Generate GPU Test", AMD_READY_PIPELINE)
+    command = "\n".join(step["commands"])
+    source = Path("tests/e2e/features/rlhf_test/test_verl_omni_e2e.py").read_text(encoding="utf-8")
+    server = Path("tests/e2e/features/helpers/verl_omni_server.py").read_text(encoding="utf-8")
+
+    assert step["agent_pool"] == "mi300_1"
+    assert step["mirror_hardwares"] == ["amdproduction"]
+    assert step["grade"] == "NonBlocking"
+    assert step["timeout_in_minutes"] == 40
+    assert "timeout --signal=TERM --kill-after=1m 30m" in command
+    assert _marker_expressions(step) == [
+        _VERL_GENERATE_READY_MARKER,
+        _VERL_GENERATE_READY_MARKER,
+    ]
+    assert command.count('--run-level "core_model"') == 2
+    assert command.count(_VERL_GENERATE_READY_NODE) == 1
+    assert "diff -u /tmp/verl-generate-ready-expected.txt" in command
+    assert "test_weight_transfer" not in command
+    assert "TORCH_SDPA" not in command
+    assert "ray==" not in command
+    assert "omegaconf==" not in command
+    assert 'res={"cuda": "L4", "rocm": "MI325"}, num_cards=1' in source
+    assert "server.shutdown.remote()" in source
+    assert source.index("server.shutdown.remote()") < source.index("ray.shutdown()")
+    assert "self.engine.shutdown()" in server
+    assert 'child.name.startswith("DiffusionWorker")' in server

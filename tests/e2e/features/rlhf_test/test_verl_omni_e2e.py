@@ -157,16 +157,24 @@ def init_server():
         cuda_visible_devices="0",
     )
 
-    ray.get(server.launch_server.remote())
-
-    yield server
-
-    ray.shutdown()
+    try:
+        ray.get(server.launch_server.remote())
+        yield server
+    finally:
+        # Close the actor engine first. Ray shutdown alone can leave
+        # DiffusionWorker processes running.
+        try:
+            ray.get(server.shutdown.remote(), timeout=60)
+        finally:
+            try:
+                ray.kill(server, no_restart=True)
+            finally:
+                ray.shutdown()
 
 
 @pytest.mark.core_model
 @pytest.mark.diffusion
-@hardware_test(res={"cuda": "L4"}, num_cards=1)
+@hardware_test(res={"cuda": "L4", "rocm": "MI325"}, num_cards=1)
 def test_generate(init_server):
     """Concurrent generate() calls covering basic output, logprobs, and multi-request correctness."""
     server = init_server

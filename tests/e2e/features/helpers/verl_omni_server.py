@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-# SPDX-FileCopyrightText: Copyright contributors to the vLLM project
+# SPDX-FileCopyrightText: Copyright contributors to the vLLM-Omni project
 
 """Ray-serializable verl-omni HTTP server test double for RLHF E2E tests.
 
@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import json
 import logging
+import multiprocessing
 import os
 from enum import Enum
 from typing import Any
@@ -212,6 +213,19 @@ class vLLMOmniHttpServerLocal:
 
         self.engine = engine_client
 
+    async def shutdown(self) -> None:
+        """Stop the diffusion engine before Ray destroys this actor."""
+        if self.engine is not None:
+            self.engine.shutdown()
+            self.engine = None
+        remaining = [
+            child.name
+            for child in multiprocessing.active_children()
+            if child.is_alive() and child.name.startswith("DiffusionWorker")
+        ]
+        if remaining:
+            raise RuntimeError(f"engine shutdown left diffusion workers: {remaining}")
+
     async def generate(
         self,
         prompt_ids: list[int],
@@ -246,7 +260,10 @@ class vLLMOmniHttpServerLocal:
         sampling_kwargs["extra_args"] = extra_args
         diffusion_sampling_params = OmniDiffusionSamplingParams(**sampling_kwargs)
 
-        generator = self.engine.generate(
+        engine = self.engine
+        if engine is None:
+            raise RuntimeError("Server must be launched before generating")
+        generator = engine.generate(
             prompt=custom_prompt,
             request_id=request_id,
             sampling_params_list=[diffusion_sampling_params],
