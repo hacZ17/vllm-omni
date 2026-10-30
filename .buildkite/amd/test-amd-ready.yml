@@ -1104,12 +1104,15 @@ steps:
       mirror_hardwares: [amdproduction]
       grade: NonBlocking
       # The step is 40 minutes. The command leaves ten minutes for preflight.
-      # The test's own ray.get budget is 600 seconds.
+      # Cold AITER JIT can exhaust both the default 600-second DLO wave budget
+      # and the test's default ray.get budget before generation begins.
       timeout_in_minutes: 40
       commands:
         - |
           timeout --signal=TERM --kill-after=1m 30m bash <<'VERL_GENERATE_READY'
           set -euo pipefail
+          export VLLM_OMNI_DLO_DP_WAVE_TIMEOUT=900
+          export VLLM_OMNI_VERL_GENERATE_TIMEOUT=1200
           nodes=(
             "tests/e2e/features/rlhf_test/test_verl_omni_e2e.py::test_generate"
           )

@@ -52,6 +52,7 @@ from vllm_omni.transformers_utils.repo_utils import hf_api
 MODEL = "tiny-random/Qwen-Image"
 TOKENIZER_MODEL = "Qwen/Qwen2-1.5B-Instruct"
 _MIN_PROMPT_TOKENS = 35
+_GENERATE_TIMEOUT = int(os.environ.get("VLLM_OMNI_VERL_GENERATE_TIMEOUT", "600"))
 
 
 def _resolve_model_path(repo_id: str) -> str:
@@ -215,7 +216,7 @@ def test_generate(init_server):
         )
         refs.append(ref)
 
-    results = ray.get(refs, timeout=600)
+    results = ray.get(refs, timeout=_GENERATE_TIMEOUT)
 
     for i, output in enumerate(results):
         assert isinstance(output, DiffusionOutput), f"Request {i}: expected DiffusionOutput"
