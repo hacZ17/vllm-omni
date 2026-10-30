@@ -3492,8 +3492,8 @@ def test_verl_generate_ready_pins_the_mi325_node() -> None:
     assert command.count('--run-level "core_model"') == 2
     assert command.count(_VERL_GENERATE_READY_NODE) == 1
     assert "diff -u /tmp/verl-generate-ready-expected.txt" in command
-    assert "export VLLM_OMNI_DLO_DP_WAVE_TIMEOUT=900" in command
-    assert "export VLLM_OMNI_VERL_GENERATE_TIMEOUT=1200" in command
+    assert "export VLLM_OMNI_DLO_DP_WAVE_TIMEOUT=1200" in command
+    assert "export VLLM_OMNI_VERL_GENERATE_TIMEOUT=1500" in command
     assert "VLLM_ROCM_USE_AITER=0" not in command
     assert "test_weight_transfer" not in command
     assert "TORCH_SDPA" not in command

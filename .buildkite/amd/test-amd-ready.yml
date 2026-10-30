@@ -1111,8 +1111,8 @@ steps:
         - |
           timeout --signal=TERM --kill-after=1m 30m bash <<'VERL_GENERATE_READY'
           set -euo pipefail
-          export VLLM_OMNI_DLO_DP_WAVE_TIMEOUT=900
-          export VLLM_OMNI_VERL_GENERATE_TIMEOUT=1200
+          export VLLM_OMNI_DLO_DP_WAVE_TIMEOUT=1200
+          export VLLM_OMNI_VERL_GENERATE_TIMEOUT=1500
           nodes=(
             "tests/e2e/features/rlhf_test/test_verl_omni_e2e.py::test_generate"
           )
