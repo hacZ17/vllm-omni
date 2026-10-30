@@ -479,6 +479,11 @@ steps:
       depends_on: amd-build
       mirror_hardwares: [amdproduction]
       grade: NonBlocking
+      # Keep this broad integration/determinism matrix on the reference
+      # backend. Existing READY diffusion jobs cover the ROCm default/AITER
+      # path without making two cold JIT builds dominate this serial lane.
+      env:
+        DIFFUSION_ATTENTION_BACKEND: TORCH_SDPA
       # One-card core_model groups, serial. The 60-minute step leaves ten
       # minutes around the 50-minute command. Do not copy CUDA xdist -n 4.
       timeout_in_minutes: 60

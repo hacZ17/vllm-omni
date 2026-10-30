@@ -3577,6 +3577,7 @@ def test_tiny_diffusion_base_ready_pins_one_card_nodes() -> None:
     assert step["agent_pool"] == "mi300_1"
     assert step["mirror_hardwares"] == ["amdproduction"]
     assert step["grade"] == "NonBlocking"
+    assert step["env"]["DIFFUSION_ATTENTION_BACKEND"] == "TORCH_SDPA"
     assert step["timeout_in_minutes"] == 60
     assert step["artifact_paths"] == ["artifacts/rocm-tiny-diffusion-base/**/*"]
     assert "timeout --signal=TERM --kill-after=1m 50m" in command
@@ -3588,6 +3589,7 @@ def test_tiny_diffusion_base_ready_pins_one_card_nodes() -> None:
     assert command.count('--run-level "core_model"') == 2
     assert "pytest -n" not in command
     assert "-n 4" not in command
+    assert "VLLM_ROCM_USE_AITER=0" not in command
     assert "LTX2" not in command
     assert "full_model" not in "\n".join(_marker_expressions(step))
     assert "tests/distributed" not in command
