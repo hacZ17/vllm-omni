@@ -3497,6 +3497,8 @@ def test_verl_generate_ready_pins_the_mi325_node() -> None:
     assert "ray==" not in command
     assert "omegaconf==" not in command
     assert 'res={"cuda": "L4", "rocm": "MI325"}, num_cards=1' in source
+    assert 'tempfile.mkdtemp(prefix="ray-", dir="/tmp")' in source
+    assert "_temp_dir=ray_temp_dir" in source
     assert "server.shutdown.remote()" in source
     assert source.index("server.shutdown.remote()") < source.index("ray.shutdown()")
     shutdown = server.split("async def shutdown", 1)[1].split("async def generate", 1)[0]

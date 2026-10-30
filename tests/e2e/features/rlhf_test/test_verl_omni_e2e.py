@@ -29,7 +29,9 @@ Usage:
 from __future__ import annotations
 
 import os
-from functools import lru_cache
+import shutil
+import tempfile
+from functools import lru_cache, partial
 from uuid import uuid4
 
 import pytest
@@ -76,11 +78,18 @@ def _tokenize_prompt(text: str) -> list[int]:
 
 
 @pytest.fixture
-def init_server():
+def init_server(request: pytest.FixtureRequest):
     """Create and launch a vLLMOmniHttpServerLocal Ray actor with Qwen-Image."""
     model_path = _resolve_model_path(MODEL)
+    # The native AMD runner nests TMPDIR under a Buildkite job UUID. Ray adds
+    # its session and socket suffixes, which can exceed Linux's 107-byte
+    # AF_UNIX path limit before the test reaches the GPU. Keep Ray's root
+    # short, unique, and scoped to this fixture.
+    ray_temp_dir = tempfile.mkdtemp(prefix="ray-", dir="/tmp")
+    request.addfinalizer(partial(shutil.rmtree, ray_temp_dir, ignore_errors=True))
 
     ray.init(
+        _temp_dir=ray_temp_dir,
         runtime_env={
             "env_vars": {
                 "TOKENIZERS_PARALLELISM": "true",
