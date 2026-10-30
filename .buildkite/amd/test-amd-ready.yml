@@ -506,41 +506,23 @@ steps:
             "tests/model_tests/diffusion/test_common_offline.py::test_pipeline_on_supported_tasks[SanaVideoPipeline[cache_dit+layerwise_offload]]"
             "tests/model_tests/diffusion/test_common_offline.py::test_pipeline_on_supported_tasks[SanaImageToVideoPipeline]"
             "tests/model_tests/diffusion/test_common_offline.py::test_pipeline_on_supported_tasks[QwenImagePipeline]"
-            "tests/model_tests/diffusion/test_common_offline.py::test_pipeline_on_supported_tasks[LongCatImagePipeline]"
             "tests/model_tests/diffusion/test_common_offline.py::test_pipeline_on_supported_tasks[LongCatImagePipeline[tea_cache]]"
-            "tests/model_tests/diffusion/test_common_offline.py::test_pipeline_on_supported_tasks[LongCatImageEditPipeline]"
             "tests/model_tests/diffusion/test_common_offline.py::test_pipeline_on_supported_tasks[LongCatImageEditPipeline[tea_cache]]"
-            "tests/model_tests/diffusion/test_common_offline.py::test_pipeline_on_supported_tasks[FluxPipeline]"
-            "tests/model_tests/diffusion/test_common_offline.py::test_pipeline_on_supported_tasks[FluxKontextPipeline]"
-            "tests/model_tests/diffusion/test_common_offline.py::test_pipeline_on_supported_tasks[Flux2Pipeline]"
             "tests/model_tests/diffusion/test_common_offline.py::test_pipeline_on_supported_tasks[Flux2Pipeline[cache_dit+layerwise_offload]]"
             "tests/model_tests/diffusion/test_common_offline.py::test_pipeline_on_supported_tasks[QwenImageEditPipeline]"
             "tests/model_tests/diffusion/test_common_offline.py::test_pipeline_on_supported_tasks[QwenImageEditPlusPipeline]"
-            "tests/model_tests/diffusion/test_common_offline.py::test_pipeline_on_supported_tasks[StableDiffusion3Pipeline]"
             "tests/model_tests/diffusion/test_common_offline.py::test_pipeline_on_supported_tasks[StableDiffusion3Pipeline[cache_dit+layerwise_offload]]"
-            "tests/model_tests/diffusion/test_common_offline.py::test_pipeline_on_supported_tasks[Krea2Pipeline]"
-            "tests/model_tests/diffusion/test_common_offline.py::test_pipeline_on_supported_tasks[StableDiffusionXLPipeline]"
             "tests/model_tests/diffusion/test_common_offline.py::test_pipeline_on_supported_tasks[StableDiffusionXLPipeline[cpu_offload]]"
             "tests/model_tests/diffusion/test_common_online.py::test_online_on_supported_tasks[AnimaPipeline]"
             "tests/model_tests/diffusion/test_common_online.py::test_online_on_supported_tasks[Flux2KleinPipeline]"
-            "tests/model_tests/diffusion/test_common_online.py::test_online_on_supported_tasks[SanaVideoPipeline]"
-            "tests/model_tests/diffusion/test_common_online.py::test_online_on_supported_tasks[SanaImageToVideoPipeline]"
             "tests/model_tests/diffusion/test_common_online.py::test_online_on_supported_tasks[QwenImagePipeline]"
-            "tests/model_tests/diffusion/test_common_online.py::test_online_on_supported_tasks[LongCatImagePipeline]"
-            "tests/model_tests/diffusion/test_common_online.py::test_online_on_supported_tasks[LongCatImageEditPipeline]"
-            "tests/model_tests/diffusion/test_common_online.py::test_online_on_supported_tasks[FluxPipeline]"
-            "tests/model_tests/diffusion/test_common_online.py::test_online_on_supported_tasks[FluxKontextPipeline]"
-            "tests/model_tests/diffusion/test_common_online.py::test_online_on_supported_tasks[Flux2Pipeline]"
             "tests/model_tests/diffusion/test_common_online.py::test_online_on_supported_tasks[QwenImageEditPipeline]"
             "tests/model_tests/diffusion/test_common_online.py::test_online_on_supported_tasks[QwenImageEditPlusPipeline]"
-            "tests/model_tests/diffusion/test_common_online.py::test_online_on_supported_tasks[StableDiffusion3Pipeline]"
             "tests/model_tests/diffusion/test_common_online.py::test_online_on_supported_tasks[Krea2Pipeline]"
-            "tests/model_tests/diffusion/test_common_online.py::test_online_on_supported_tasks[StableDiffusionXLPipeline]"
           )
           printf '%s\n' "$${nodes[@]}" | sort > /tmp/tiny-diffusion-base-ready-expected.txt
           pytest -q \
-            tests/model_tests/diffusion/test_common_offline.py \
-            tests/model_tests/diffusion/test_common_online.py \
+            "$${nodes[@]}" \
             -m "core_model and diffusion and rocm and MI325 and cards_1" \
             --run-level "core_model" \
             --collect-only \
@@ -551,8 +533,7 @@ steps:
             exit 1
           fi
           pytest -s -v \
-            tests/model_tests/diffusion/test_common_offline.py \
-            tests/model_tests/diffusion/test_common_online.py \
+            "$${nodes[@]}" \
             -m "core_model and diffusion and rocm and MI325 and cards_1" \
             --run-level "core_model" \
             --junitxml="$$TINY_DIFFUSION_BASE_ARTIFACT_DIR/pytest.xml"

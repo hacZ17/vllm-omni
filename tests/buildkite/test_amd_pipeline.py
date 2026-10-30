@@ -3522,42 +3522,25 @@ _TINY_DIFFUSION_BASE_NODES = (
     "test_pipeline_on_supported_tasks[SanaVideoPipeline[cache_dit+layerwise_offload]]",
     "tests/model_tests/diffusion/test_common_offline.py::test_pipeline_on_supported_tasks[SanaImageToVideoPipeline]",
     "tests/model_tests/diffusion/test_common_offline.py::test_pipeline_on_supported_tasks[QwenImagePipeline]",
-    "tests/model_tests/diffusion/test_common_offline.py::test_pipeline_on_supported_tasks[LongCatImagePipeline]",
     "tests/model_tests/diffusion/test_common_offline.py::"
     "test_pipeline_on_supported_tasks[LongCatImagePipeline[tea_cache]]",
-    "tests/model_tests/diffusion/test_common_offline.py::test_pipeline_on_supported_tasks[LongCatImageEditPipeline]",
     "tests/model_tests/diffusion/test_common_offline.py::"
     "test_pipeline_on_supported_tasks[LongCatImageEditPipeline[tea_cache]]",
-    "tests/model_tests/diffusion/test_common_offline.py::test_pipeline_on_supported_tasks[FluxPipeline]",
-    "tests/model_tests/diffusion/test_common_offline.py::test_pipeline_on_supported_tasks[FluxKontextPipeline]",
-    "tests/model_tests/diffusion/test_common_offline.py::test_pipeline_on_supported_tasks[Flux2Pipeline]",
     "tests/model_tests/diffusion/test_common_offline.py::"
     "test_pipeline_on_supported_tasks[Flux2Pipeline[cache_dit+layerwise_offload]]",
     "tests/model_tests/diffusion/test_common_offline.py::test_pipeline_on_supported_tasks[QwenImageEditPipeline]",
     "tests/model_tests/diffusion/test_common_offline.py::test_pipeline_on_supported_tasks[QwenImageEditPlusPipeline]",
-    "tests/model_tests/diffusion/test_common_offline.py::test_pipeline_on_supported_tasks[StableDiffusion3Pipeline]",
     "tests/model_tests/diffusion/test_common_offline.py::"
     "test_pipeline_on_supported_tasks["
     "StableDiffusion3Pipeline[cache_dit+layerwise_offload]]",
-    "tests/model_tests/diffusion/test_common_offline.py::test_pipeline_on_supported_tasks[Krea2Pipeline]",
-    "tests/model_tests/diffusion/test_common_offline.py::test_pipeline_on_supported_tasks[StableDiffusionXLPipeline]",
     "tests/model_tests/diffusion/test_common_offline.py::"
     "test_pipeline_on_supported_tasks[StableDiffusionXLPipeline[cpu_offload]]",
     "tests/model_tests/diffusion/test_common_online.py::test_online_on_supported_tasks[AnimaPipeline]",
     "tests/model_tests/diffusion/test_common_online.py::test_online_on_supported_tasks[Flux2KleinPipeline]",
-    "tests/model_tests/diffusion/test_common_online.py::test_online_on_supported_tasks[SanaVideoPipeline]",
-    "tests/model_tests/diffusion/test_common_online.py::test_online_on_supported_tasks[SanaImageToVideoPipeline]",
     "tests/model_tests/diffusion/test_common_online.py::test_online_on_supported_tasks[QwenImagePipeline]",
-    "tests/model_tests/diffusion/test_common_online.py::test_online_on_supported_tasks[LongCatImagePipeline]",
-    "tests/model_tests/diffusion/test_common_online.py::test_online_on_supported_tasks[LongCatImageEditPipeline]",
-    "tests/model_tests/diffusion/test_common_online.py::test_online_on_supported_tasks[FluxPipeline]",
-    "tests/model_tests/diffusion/test_common_online.py::test_online_on_supported_tasks[FluxKontextPipeline]",
-    "tests/model_tests/diffusion/test_common_online.py::test_online_on_supported_tasks[Flux2Pipeline]",
     "tests/model_tests/diffusion/test_common_online.py::test_online_on_supported_tasks[QwenImageEditPipeline]",
     "tests/model_tests/diffusion/test_common_online.py::test_online_on_supported_tasks[QwenImageEditPlusPipeline]",
-    "tests/model_tests/diffusion/test_common_online.py::test_online_on_supported_tasks[StableDiffusion3Pipeline]",
     "tests/model_tests/diffusion/test_common_online.py::test_online_on_supported_tasks[Krea2Pipeline]",
-    "tests/model_tests/diffusion/test_common_online.py::test_online_on_supported_tasks[StableDiffusionXLPipeline]",
 )
 
 
@@ -3587,6 +3570,7 @@ def test_tiny_diffusion_base_ready_pins_one_card_nodes() -> None:
         _TINY_DIFFUSION_BASE_MARKER,
     ]
     assert command.count('--run-level "core_model"') == 2
+    assert command.count('"$${nodes[@]}"') == 3
     assert "pytest -n" not in command
     assert "-n 4" not in command
     assert "VLLM_ROCM_USE_AITER=0" not in command
@@ -3594,11 +3578,11 @@ def test_tiny_diffusion_base_ready_pins_one_card_nodes() -> None:
     assert "full_model" not in "\n".join(_marker_expressions(step))
     assert "tests/distributed" not in command
     assert quoted == _TINY_DIFFUSION_BASE_NODES
-    assert len(quoted) == 40
+    assert len(quoted) == 23
     offline = [node for node in quoted if "test_common_offline.py::" in node]
     online = [node for node in quoted if "test_common_online.py::" in node]
-    assert len(offline) == 25
-    assert len(online) == 15
+    assert len(offline) == 17
+    assert len(online) == 6
     assert "diff -u /tmp/tiny-diffusion-base-ready-expected.txt" in command
     assert "--junitxml=" in command
 
