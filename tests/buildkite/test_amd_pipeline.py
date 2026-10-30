@@ -3499,5 +3499,9 @@ def test_verl_generate_ready_pins_the_mi325_node() -> None:
     assert 'res={"cuda": "L4", "rocm": "MI325"}, num_cards=1' in source
     assert "server.shutdown.remote()" in source
     assert source.index("server.shutdown.remote()") < source.index("ray.shutdown()")
-    assert "self.engine.shutdown()" in server
-    assert 'child.name.startswith("DiffusionWorker")' in server
+    shutdown = server.split("async def shutdown", 1)[1].split("async def generate", 1)[0]
+    assert "workers = _snapshot_diffusion_workers()" in shutdown
+    assert shutdown.index("workers = _snapshot_diffusion_workers()") < shutdown.index("self.engine.shutdown()")
+    assert "children(recursive=True)" in server
+    assert "psutil.wait_procs" in shutdown
+    assert "multiprocessing.active_children" not in server
