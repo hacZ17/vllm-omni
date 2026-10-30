@@ -1104,15 +1104,16 @@ steps:
       mirror_hardwares: [amdproduction]
       grade: NonBlocking
       # The step is 40 minutes. The command leaves ten minutes for preflight.
-      # Cold AITER JIT can exhaust both the default 600-second DLO wave budget
-      # and the test's default ray.get budget before generation begins.
+      # Cold AITER MHA JIT varied from 911s to 1211s in READY qualification,
+      # consuming most of the command before VeRL generation began. Keep this
+      # focused integration/cleanup smoke bounded; dedicated READY jobs cover
+      # the AITER backend itself.
       timeout_in_minutes: 40
       commands:
         - |
           timeout --signal=TERM --kill-after=1m 30m bash <<'VERL_GENERATE_READY'
           set -euo pipefail
-          export VLLM_OMNI_DLO_DP_WAVE_TIMEOUT=1200
-          export VLLM_OMNI_VERL_GENERATE_TIMEOUT=1500
+          export DIFFUSION_ATTENTION_BACKEND=TORCH_SDPA
           nodes=(
             "tests/e2e/features/rlhf_test/test_verl_omni_e2e.py::test_generate"
           )

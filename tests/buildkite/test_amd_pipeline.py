@@ -3492,18 +3492,15 @@ def test_verl_generate_ready_pins_the_mi325_node() -> None:
     assert command.count('--run-level "core_model"') == 2
     assert command.count(_VERL_GENERATE_READY_NODE) == 1
     assert "diff -u /tmp/verl-generate-ready-expected.txt" in command
-    assert "export VLLM_OMNI_DLO_DP_WAVE_TIMEOUT=1200" in command
-    assert "export VLLM_OMNI_VERL_GENERATE_TIMEOUT=1500" in command
-    assert "VLLM_ROCM_USE_AITER=0" not in command
+    assert "export DIFFUSION_ATTENTION_BACKEND=TORCH_SDPA" in command
+    assert "VLLM_OMNI_DLO_DP_WAVE_TIMEOUT" not in command
     assert "test_weight_transfer" not in command
-    assert "TORCH_SDPA" not in command
     assert "ray==" not in command
     assert "omegaconf==" not in command
     assert 'res={"cuda": "L4", "rocm": "MI325"}, num_cards=1' in source
     assert 'tempfile.mkdtemp(prefix="ray-", dir="/tmp")' in source
     assert "_temp_dir=ray_temp_dir" in source
-    assert 'os.environ.get("VLLM_OMNI_VERL_GENERATE_TIMEOUT", "600")' in source
-    assert "ray.get(refs, timeout=_GENERATE_TIMEOUT)" in source
+    assert "ray.get(refs, timeout=600)" in source
     assert "server.shutdown.remote()" in source
     assert source.index("server.shutdown.remote()") < source.index("ray.shutdown()")
     shutdown = server.split("async def shutdown", 1)[1].split("async def generate", 1)[0]
