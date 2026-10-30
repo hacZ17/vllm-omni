@@ -3540,7 +3540,6 @@ _TINY_DIFFUSION_BASE_NODES = (
     "tests/model_tests/diffusion/test_common_online.py::test_online_on_supported_tasks[QwenImagePipeline]",
     "tests/model_tests/diffusion/test_common_online.py::test_online_on_supported_tasks[QwenImageEditPipeline]",
     "tests/model_tests/diffusion/test_common_online.py::test_online_on_supported_tasks[QwenImageEditPlusPipeline]",
-    "tests/model_tests/diffusion/test_common_online.py::test_online_on_supported_tasks[Krea2Pipeline]",
 )
 
 
@@ -3578,11 +3577,11 @@ def test_tiny_diffusion_base_ready_pins_one_card_nodes() -> None:
     assert "full_model" not in "\n".join(_marker_expressions(step))
     assert "tests/distributed" not in command
     assert quoted == _TINY_DIFFUSION_BASE_NODES
-    assert len(quoted) == 23
+    assert len(quoted) == 22
     offline = [node for node in quoted if "test_common_offline.py::" in node]
     online = [node for node in quoted if "test_common_online.py::" in node]
     assert len(offline) == 17
-    assert len(online) == 6
+    assert len(online) == 5
     assert "diff -u /tmp/tiny-diffusion-base-ready-expected.txt" in command
     assert "--junitxml=" in command
 

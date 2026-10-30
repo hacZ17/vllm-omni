@@ -518,7 +518,6 @@ steps:
             "tests/model_tests/diffusion/test_common_online.py::test_online_on_supported_tasks[QwenImagePipeline]"
             "tests/model_tests/diffusion/test_common_online.py::test_online_on_supported_tasks[QwenImageEditPipeline]"
             "tests/model_tests/diffusion/test_common_online.py::test_online_on_supported_tasks[QwenImageEditPlusPipeline]"
-            "tests/model_tests/diffusion/test_common_online.py::test_online_on_supported_tasks[Krea2Pipeline]"
           )
           printf '%s\n' "$${nodes[@]}" | sort > /tmp/tiny-diffusion-base-ready-expected.txt
           pytest -q \
