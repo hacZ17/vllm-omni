@@ -214,6 +214,8 @@ def main() -> int:
         validate_existing_kernel_fix(output)
     if os.environ.get("QWEN_RUNTIME_PRODUCTION_WARMUP") == "1":
         validate_production_warmup(output)
+        if os.environ.get("QWEN_RUNTIME_VALIDATE_ONLY") == "1":
+            return 0
     if os.environ.get("QWEN_RUNTIME_EAGER_WARMUP") == "1":
         checkout = Path(os.environ["BUILDKITE_BUILD_CHECKOUT_PATH"])
         instrumentation = (checkout / ".buildkite/amd/scripts/warm-qwen-eager-decoder.py").read_text()
@@ -239,6 +241,9 @@ def main() -> int:
         path = Path("vllm_omni/entrypoints/openai/serving_chat.py")
         path.write_text(path.read_text() + "\n" + instrumentation)
         os.environ["QWEN_FRONTEND_PROFILE_DIR"] = str(output / "frontend")
+        instrumentation = (checkout / ".buildkite/amd/scripts/profile-qwen-json-client.py").read_text()
+        path = Path("vllm_omni/benchmarks/patch/patch.py")
+        path.write_text(path.read_text() + "\n" + instrumentation)
     expected_tests, expected_results = count, count
     if os.environ.get("QWEN_RUNTIME_FULL_SUITE", "0") == "1":
         expected_tests, expected_results = {"async": (6, 6), "no_async": (4, 8), "tts": (8, 14)}[args.kind]

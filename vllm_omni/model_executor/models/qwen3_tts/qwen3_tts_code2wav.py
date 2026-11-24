@@ -828,8 +828,12 @@ class Qwen3TTSCode2Wav(nn.Module):
 
     def _warmup_eager_decoder(self, device: torch.device) -> None:
         """Initialize MIOpen shapes with private state before accepting requests."""
+        if not self._decode_batch_max_size:
+            # An uncapped eager backend has no small, deployment-owned shape
+            # set to initialize. Keep its existing on-demand behavior.
+            return
         max_seqs = self.vllm_config.scheduler_config.max_num_seqs
-        max_batch = min(self._decode_batch_max_size or max_seqs, max_seqs)
+        max_batch = min(self._decode_batch_max_size, max_seqs)
         prefix = self._decoder_sliding_window
         chunk = self.decoder._incremental_chunk_frames
         ramp = self.decoder._incremental_chunk_ramp

@@ -718,6 +718,15 @@ def test_eager_warmup_covers_partial_batches_without_retaining_request_state(ram
     torch.testing.assert_close(torch.random.get_rng_state(), random_state, rtol=0, atol=0)
 
 
+def test_eager_warmup_preserves_uncapped_batching_startup():
+    model = _make_model(async_chunk=True)
+    assert model._decode_batch_max_size == 0
+    with patch("torch.accelerator.synchronize") as synchronize:
+        model._warmup_eager_decoder(torch.device("cpu"))
+        synchronize.assert_not_called()
+    assert model.decoder.batched_decode_calls == []
+
+
 def test_streaming_codec_is_built_by_the_warmup_hook(monkeypatch):
     from vllm_omni.model_executor.models.qwen3_tts import streaming_code2wav
     from vllm_omni.platforms import current_omni_platform

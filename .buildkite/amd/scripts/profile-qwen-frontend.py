@@ -93,3 +93,20 @@ for _diag_method in ("__init__", "_load_data_url"):
     setattr(
         _DiagMediaConnector, _diag_method, _diag_wrap_media(getattr(_DiagMediaConnector, _diag_method), _diag_method)
     )
+
+_diag_loads_original = _diag_json.loads
+
+
+@_diag_functools.wraps(_diag_loads_original)
+def _diag_loads(*args, **kwargs):
+    started = _diag_time.time_ns()
+    result = _diag_loads_original(*args, **kwargs)
+    ended = _diag_time.time_ns()
+    if isinstance(result, dict) and "messages" in result and "model" in result:
+        (_diag_dir / f"json_loads-{_diag_uuid.uuid4().hex}.json").write_text(
+            _diag_json.dumps(dict(start_ns=started, end_ns=ended, input_bytes=len(args[0])))
+        )
+    return result
+
+
+_diag_json.loads = _diag_loads
