@@ -4,9 +4,9 @@ env:
   HF_HUB_DOWNLOAD_TIMEOUT: 300
   HF_HUB_ETAG_TIMEOUT: 60
 steps:
-- group: Qwen full-suite runtime comparison for build 17377 (diagnostic only)
+- group: Validate existing PR10995 eager-MTP fix on ROCm; diagnostic only
   steps:
-  - label: 'DIAGNOSTIC ONLY: async full suite fast'
+  - label: 'DIAGNOSTIC ONLY: tts full suite FAST plus PR10995 eager-MTP fix'
     agent_pool: mi300_2
     depends_on: '~'
     mirror_hardwares:
@@ -17,86 +17,11 @@ steps:
     env:
       QWEN_RUNTIME_PROFILE: '0'
       QWEN_RUNTIME_FULL_SUITE: '1'
-      QWEN_RUNTIME_VARIANT: fast
+      QWEN_RUNTIME_VARIANT: fast_kernel_fix
       MIOPEN_FIND_MODE: FAST
+      QWEN_RUNTIME_KERNEL_FIX: '1'
     artifact_paths:
-    - artifacts/runtime-profile-async-fast/**/*
-    commands:
-    - python3 "$${BUILDKITE_BUILD_CHECKOUT_PATH:?}/.buildkite/amd/scripts/profile-qwen-runtime.py"
-      async
-  - label: 'DIAGNOSTIC ONLY: async full suite fast_threads1'
-    agent_pool: mi300_2
-    depends_on: '~'
-    mirror_hardwares:
-    - amdproduction
-    grade: Blocking
-    timeout_in_minutes: 90
-    source_file_dependencies: ci_rocm
-    env:
-      QWEN_RUNTIME_PROFILE: '0'
-      QWEN_RUNTIME_FULL_SUITE: '1'
-      QWEN_RUNTIME_VARIANT: fast_threads1
-      MIOPEN_FIND_MODE: FAST
-      OMP_NUM_THREADS: '1'
-      OPENBLAS_NUM_THREADS: '1'
-    artifact_paths:
-    - artifacts/runtime-profile-async-fast_threads1/**/*
-    commands:
-    - python3 "$${BUILDKITE_BUILD_CHECKOUT_PATH:?}/.buildkite/amd/scripts/profile-qwen-runtime.py"
-      async
-  - label: 'DIAGNOSTIC ONLY: no_async full suite fast'
-    agent_pool: mi300_2
-    depends_on: '~'
-    mirror_hardwares:
-    - amdproduction
-    grade: Blocking
-    timeout_in_minutes: 90
-    source_file_dependencies: ci_rocm
-    env:
-      QWEN_RUNTIME_PROFILE: '0'
-      QWEN_RUNTIME_FULL_SUITE: '1'
-      QWEN_RUNTIME_VARIANT: fast
-      MIOPEN_FIND_MODE: FAST
-    artifact_paths:
-    - artifacts/runtime-profile-no_async-fast/**/*
-    commands:
-    - python3 "$${BUILDKITE_BUILD_CHECKOUT_PATH:?}/.buildkite/amd/scripts/profile-qwen-runtime.py"
-      no_async
-  - label: 'DIAGNOSTIC ONLY: no_async full suite fast_threads1'
-    agent_pool: mi300_2
-    depends_on: '~'
-    mirror_hardwares:
-    - amdproduction
-    grade: Blocking
-    timeout_in_minutes: 90
-    source_file_dependencies: ci_rocm
-    env:
-      QWEN_RUNTIME_PROFILE: '0'
-      QWEN_RUNTIME_FULL_SUITE: '1'
-      QWEN_RUNTIME_VARIANT: fast_threads1
-      MIOPEN_FIND_MODE: FAST
-      OMP_NUM_THREADS: '1'
-      OPENBLAS_NUM_THREADS: '1'
-    artifact_paths:
-    - artifacts/runtime-profile-no_async-fast_threads1/**/*
-    commands:
-    - python3 "$${BUILDKITE_BUILD_CHECKOUT_PATH:?}/.buildkite/amd/scripts/profile-qwen-runtime.py"
-      no_async
-  - label: 'DIAGNOSTIC ONLY: tts full suite fast'
-    agent_pool: mi300_2
-    depends_on: '~'
-    mirror_hardwares:
-    - amdproduction
-    grade: Blocking
-    timeout_in_minutes: 90
-    source_file_dependencies: ci_rocm
-    env:
-      QWEN_RUNTIME_PROFILE: '0'
-      QWEN_RUNTIME_FULL_SUITE: '1'
-      QWEN_RUNTIME_VARIANT: fast
-      MIOPEN_FIND_MODE: FAST
-    artifact_paths:
-    - artifacts/runtime-profile-tts-fast/**/*
+    - artifacts/runtime-profile-tts-fast_kernel_fix/**/*
     commands:
     - python3 "$${BUILDKITE_BUILD_CHECKOUT_PATH:?}/.buildkite/amd/scripts/profile-qwen-runtime.py"
       tts

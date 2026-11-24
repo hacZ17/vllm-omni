@@ -5,11 +5,14 @@
 
 import argparse
 import copy
+import hashlib
 import json
 import os
+import shutil
 import subprocess
 import threading
 import time
+import xml.etree.ElementTree as ET
 from pathlib import Path
 
 
@@ -107,6 +110,39 @@ def sample_resources(output: Path, stop: threading.Event) -> None:
             stop.wait(5)
 
 
+def validate_existing_kernel_fix(output: Path) -> None:
+    """Validate the eager-MTP part of upstream PR #10995 on ROCm."""
+    checkout = Path(os.environ["BUILDKITE_BUILD_CHECKOUT_PATH"])
+    test = Path("tests/worker_v2/test_eager_frame_kernels.py")
+    source = Path("vllm_omni/worker_v2/model_states/eager_mtp_kernels.py")
+    shutil.copyfile(checkout / test, test)
+    node = f"{test}::test_eager_mtp_kernels_compile_once_for_every_batch_size"
+    base_args = ["python3", "-m", "pytest", "-q", "--run-level", "core_model"]
+    before_xml = output / "kernel-before.xml"
+    with (output / "kernel-before.txt").open("w") as log:
+        before = subprocess.run([*base_args, node, f"--junitxml={before_xml}"], stdout=log, stderr=subprocess.STDOUT)
+    tree = ET.parse(before_xml)
+    failures = tree.findall(".//failure")
+    if before.returncode != 1 or len(failures) != 1 or "assert compiles == []" not in (failures[0].text or ""):
+        raise RuntimeError("Expected the original kernel to reproduce the compile-count regression")
+    print("Original eager-MTP kernels reproduced the compile-count regression.", flush=True)
+    shutil.copyfile(source, output / "eager_mtp_kernels-before.py")
+    shutil.copyfile(checkout / source, source)
+    (output / "kernel-source-sha256.txt").write_text(hashlib.sha256(source.read_bytes()).hexdigest() + "\n")
+    after_xml = output / "kernel-after.xml"
+    with (output / "kernel-after.txt").open("w") as log:
+        after = subprocess.run(
+            [*base_args, str(test), "-m", "core_model and rocm and MI325 and cards_1", f"--junitxml={after_xml}"],
+            stdout=log,
+            stderr=subprocess.STDOUT,
+        )
+    tree = ET.parse(after_xml)
+    cases = tree.findall(".//testcase")
+    if after.returncode or not cases or tree.findall(".//skipped"):
+        raise RuntimeError("Patched eager-MTP kernel tests did not all pass")
+    print(f"Patched eager-MTP kernels: {len(cases)} ROCm tests passed, no skips.", flush=True)
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("kind", choices=("async", "no_async", "tts"))
@@ -130,6 +166,7 @@ def main() -> int:
                     "MIOPEN_FIND_MODE",
                     "OMP_NUM_THREADS",
                     "OPENBLAS_NUM_THREADS",
+                    "QWEN_RUNTIME_KERNEL_FIX",
                 )
             },
             indent=2,
@@ -138,6 +175,8 @@ def main() -> int:
     )
     if args.prepare_only:
         return 0
+    if os.environ.get("QWEN_RUNTIME_KERNEL_FIX") == "1":
+        validate_existing_kernel_fix(output)
     expected_tests, expected_results = count, count
     if os.environ.get("QWEN_RUNTIME_FULL_SUITE", "0") == "1":
         expected_tests, expected_results = {"async": (6, 6), "no_async": (4, 8), "tts": (8, 14)}[args.kind]

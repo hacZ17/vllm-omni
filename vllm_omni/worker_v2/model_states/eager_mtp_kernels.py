@@ -17,7 +17,7 @@ import torch
 from vllm.triton_utils import tl, triton
 
 
-@triton.jit
+@triton.jit(do_not_specialize=["n"])
 def _pre_kernel(
     meta_ptr,  # int64 [4, n]: batch row, request index, prefill flag, first-audio scheduled
     n,
@@ -50,7 +50,7 @@ def _pre_kernel(
         tl.store(step_ptr + b * H + c, tl.zeros([BH], dtype=step_ptr.dtype.element_ty), mask=m)
 
 
-@triton.jit
+@triton.jit(do_not_specialize=["n"], do_not_specialize_on_alignment=["fa_ptr"])
 def _post_kernel(
     meta_ptr,
     n,
@@ -165,7 +165,7 @@ def eager_post(
     return valid
 
 
-@triton.jit
+@triton.jit(do_not_specialize=["n"])
 def _settled_kernel(
     meta_ptr,  # int64 [2, n]: request slot, token row
     n,
@@ -193,7 +193,7 @@ def settled_frames(meta: torch.Tensor, n: int, eager: torch.Tensor, step: torch.
     _settled_kernel[(n,)](meta, n, eager, step, embeds, H=H, BH=min(1024, triton.next_power_of_2(H)))
 
 
-@triton.jit
+@triton.jit(do_not_specialize=["n"])
 def _history_kernel(meta, inputs, n, H: tl.constexpr, BLOCK: tl.constexpr):
     token = tl.program_id(0)
     row = tl.load(meta + 4 * n + token)
