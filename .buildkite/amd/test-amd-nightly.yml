@@ -8,7 +8,7 @@ steps:
     steps:
       - label: "DIAGNOSTIC ONLY: async Qwen runtime trace"
         agent_pool: mi300_2
-        depends_on: amd-build
+        depends_on: "~"
         mirror_hardwares: [amdproduction]
         grade: Blocking
         timeout_in_minutes: 90
@@ -16,10 +16,10 @@ steps:
         artifact_paths:
           - artifacts/runtime-profile-async/**/*
         commands:
-          - python3 .buildkite/amd/scripts/profile-qwen-runtime.py async
+          - python3 "$${BUILDKITE_BUILD_CHECKOUT_PATH:?}/.buildkite/amd/scripts/profile-qwen-runtime.py" async
       - label: "DIAGNOSTIC ONLY: no_async Qwen runtime trace"
         agent_pool: mi300_2
-        depends_on: amd-build
+        depends_on: "~"
         mirror_hardwares: [amdproduction]
         grade: Blocking
         timeout_in_minutes: 90
@@ -27,10 +27,10 @@ steps:
         artifact_paths:
           - artifacts/runtime-profile-no_async/**/*
         commands:
-          - python3 .buildkite/amd/scripts/profile-qwen-runtime.py no_async
+          - python3 "$${BUILDKITE_BUILD_CHECKOUT_PATH:?}/.buildkite/amd/scripts/profile-qwen-runtime.py" no_async
       - label: "DIAGNOSTIC ONLY: tts Qwen runtime trace"
         agent_pool: mi300_2
-        depends_on: amd-build
+        depends_on: "~"
         mirror_hardwares: [amdproduction]
         grade: Blocking
         timeout_in_minutes: 90
@@ -38,4 +38,4 @@ steps:
         artifact_paths:
           - artifacts/runtime-profile-tts/**/*
         commands:
-          - python3 .buildkite/amd/scripts/profile-qwen-runtime.py tts
+          - python3 "$${BUILDKITE_BUILD_CHECKOUT_PATH:?}/.buildkite/amd/scripts/profile-qwen-runtime.py" tts

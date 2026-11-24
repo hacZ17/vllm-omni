@@ -4,7 +4,8 @@
    Modifications: Use the shared MI300 queues and Omni command-passing contract
 #}
 {% set docker_registry_amd = "rocm/vllm-omni" %}
-{% set docker_image_amd = docker_registry_amd ~ ":$BUILDKITE_COMMIT" %}
+{# Diagnostic only: same published runtime, updated helper from checkout. #}
+{% set docker_image_amd = docker_registry_amd ~ ":b451d18da1e86a8ada76687afb9f1497b2e822d3" %}
 {% set default_working_dir = "/app/vllm-omni" %}
 
 {# MI300 runs tests natively in Kubernetes; Docker-in-Docker is unavailable. #}
@@ -68,59 +69,6 @@ env:
 {% endfor %}
 {% endif %}
 steps:
-  - group: "AMD Tests"
-    depends_on: ~
-    steps:
-      - label: "AMD: :docker: seed dependency cache"
-        depends_on: ~
-        soft_fail: false
-        commands:
-          - "bash .buildkite/amd/scripts/build-ci-image.sh cache"
-        key: "amd-cache"
-        concurrency: 1
-        concurrency_group: "vllm-omni-amd-cache-publish"
-        env:
-          DOCKER_BUILDKIT: "1"
-          PYTORCH_ROCM_ARCH: "gfx942"
-          ROCM_CI_IMAGE_REGISTRY: "{{ docker_registry_amd }}"
-        retry:
-          automatic:
-            - exit_status: -1  # Agent was lost
-              limit: 2
-            - exit_status: -10  # Agent was lost
-              limit: 2
-            - exit_status: 128  # Git connectivity issues
-              limit: 2
-            - exit_status: 1  # Machine occasionally fail
-              limit: 1
-        agents:
-          queue: amd-cpu
-
-      - label: "AMD: :docker: build image"
-        depends_on: amd-cache
-        soft_fail: false
-        commands:
-          - "bash .buildkite/amd/scripts/build-ci-image.sh image"
-        key: "amd-build"
-        concurrency: 2
-        concurrency_group: "vllm-omni-amd-image-publish"
-        env:
-          DOCKER_BUILDKIT: "1"
-          PYTORCH_ROCM_ARCH: "gfx942"
-          ROCM_CI_IMAGE_REGISTRY: "{{ docker_registry_amd }}"
-        retry:
-          automatic:
-            - exit_status: -1  # Agent was lost
-              limit: 2
-            - exit_status: -10  # Agent was lost
-              limit: 2
-            - exit_status: 128  # Git connectivity issues
-              limit: 2
-            - exit_status: 1  # Machine occasionally fail
-              limit: 1
-        agents:
-          queue: amd-cpu
-
 {% for step_group in steps %}
 {% if step_group.group %}
   - group: "{{ step_group.group }}"

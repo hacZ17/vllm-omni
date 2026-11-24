@@ -42,10 +42,13 @@ def prepare(kind: str, output: Path) -> tuple[Path, int]:
             "torch_profiler_record_shapes": True,
             "torch_profiler_with_stack": False,
             "torch_profiler_use_gzip": True,
+            "ignore_frontend": True,
             "max_iterations": 1000,
         }
+        overrides = config["server_params"].setdefault("stage_overrides", {})
+        for stage in range(2 if kind == "tts" else 3):
+            overrides.setdefault(str(stage), {})["profiler_config"] = profiler.copy()
         args = config["server_params"].setdefault("extra_cli_args", [])
-        args.extend(["--profiler-config", json.dumps(profiler)])
         if kind != "tts" and "--stage-init-timeout" not in args:
             args.extend(["--stage-init-timeout", "900"])
         config["benchmark_params"][0]["profile"] = True
