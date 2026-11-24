@@ -58,3 +58,39 @@ async def _diag_preprocess(self, *args, **kwargs):
 
 _DiagProcessor.apply = _diag_apply
 OmniOpenAIServingChat._preprocess_chat = _diag_preprocess
+
+from vllm.multimodal.media.connector import MediaConnector as _DiagMediaConnector
+
+
+def _diag_wrap_media(original, name):
+    @_diag_functools.wraps(original)
+    def wrapped(*args, **kwargs):
+        profiler = _diag_cprofile.Profile()
+        started = _diag_time.time_ns()
+        try:
+            return profiler.runcall(original, *args, **kwargs)
+        finally:
+            stats = _diag_pstats.Stats(profiler)
+            rows = [
+                dict(
+                    file=key[0],
+                    line=key[1],
+                    function=key[2],
+                    calls=value[1],
+                    self_seconds=value[2],
+                    cumulative_seconds=value[3],
+                )
+                for key, value in stats.stats.items()
+            ]
+            rows.sort(key=lambda row: row["cumulative_seconds"], reverse=True)
+            (_diag_dir / f"media_{name}-{_diag_uuid.uuid4().hex}.json").write_text(
+                _diag_json.dumps(dict(start_ns=started, end_ns=_diag_time.time_ns(), functions=rows[:80]))
+            )
+
+    return wrapped
+
+
+for _diag_method in ("__init__", "_load_data_url"):
+    setattr(
+        _DiagMediaConnector, _diag_method, _diag_wrap_media(getattr(_DiagMediaConnector, _diag_method), _diag_method)
+    )

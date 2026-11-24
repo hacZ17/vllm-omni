@@ -182,6 +182,11 @@ def main() -> int:
         return 0
     if os.environ.get("QWEN_RUNTIME_KERNEL_FIX") == "1":
         validate_existing_kernel_fix(output)
+    if os.environ.get("QWEN_RUNTIME_EAGER_WARMUP") == "1":
+        checkout = Path(os.environ["BUILDKITE_BUILD_CHECKOUT_PATH"])
+        instrumentation = (checkout / ".buildkite/amd/scripts/warm-qwen-eager-decoder.py").read_text()
+        path = Path("vllm_omni/model_executor/models/qwen3_tts/qwen3_tts_code2wav.py")
+        path.write_text(path.read_text() + "\n" + instrumentation)
     focus = os.environ.get("QWEN_RUNTIME_FOCUS")
     if focus == "decoder":
         import vllm.benchmarks.lib.endpoint_request_func as endpoint

@@ -4,9 +4,10 @@ env:
   HF_HUB_DOWNLOAD_TIMEOUT: 300
   HF_HUB_ETAG_TIMEOUT: 60
 steps:
-- group: Isolate remaining frontend and decoder latency; diagnostic only
+- group: Validate eager decoder startup warmup and profile frontend media; diagnostic
+    only
   steps:
-  - label: 'DIAGNOSTIC ONLY: frontend remaining latency'
+  - label: 'DIAGNOSTIC ONLY: frontend media initialization profile'
     agent_pool: mi300_2
     depends_on: '~'
     mirror_hardwares:
@@ -17,17 +18,17 @@ steps:
     env:
       QWEN_RUNTIME_PROFILE: '0'
       QWEN_RUNTIME_FULL_SUITE: '0'
-      QWEN_RUNTIME_VARIANT: frontend
+      QWEN_RUNTIME_VARIANT: frontend_media
       QWEN_RUNTIME_FOCUS: frontend
       MIOPEN_FIND_MODE: FAST
       OMP_NUM_THREADS: '1'
       OPENBLAS_NUM_THREADS: '1'
     artifact_paths:
-    - artifacts/runtime-profile-async-frontend/**/*
+    - artifacts/runtime-profile-async-frontend_media/**/*
     commands:
     - python3 "$${BUILDKITE_BUILD_CHECKOUT_PATH:?}/.buildkite/amd/scripts/profile-qwen-runtime.py"
       async
-  - label: 'DIAGNOSTIC ONLY: decoder remaining latency'
+  - label: 'DIAGNOSTIC ONLY: tts full suite eager_warmup'
     agent_pool: mi300_2
     depends_on: '~'
     mirror_hardwares:
@@ -36,13 +37,33 @@ steps:
     timeout_in_minutes: 90
     source_file_dependencies: ci_rocm
     env:
-      QWEN_RUNTIME_PROFILE: '1'
-      QWEN_RUNTIME_FULL_SUITE: '0'
-      QWEN_RUNTIME_VARIANT: decoder
-      QWEN_RUNTIME_FOCUS: decoder
+      QWEN_RUNTIME_PROFILE: '0'
+      QWEN_RUNTIME_FULL_SUITE: '1'
+      QWEN_RUNTIME_VARIANT: eager_warmup
+      QWEN_RUNTIME_EAGER_WARMUP: '1'
       MIOPEN_FIND_MODE: FAST
     artifact_paths:
-    - artifacts/runtime-profile-tts-decoder/**/*
+    - artifacts/runtime-profile-tts-eager_warmup/**/*
+    commands:
+    - python3 "$${BUILDKITE_BUILD_CHECKOUT_PATH:?}/.buildkite/amd/scripts/profile-qwen-runtime.py"
+      tts
+  - label: 'DIAGNOSTIC ONLY: tts full suite eager_warmup_kernel'
+    agent_pool: mi300_2
+    depends_on: '~'
+    mirror_hardwares:
+    - amdproduction
+    grade: Blocking
+    timeout_in_minutes: 90
+    source_file_dependencies: ci_rocm
+    env:
+      QWEN_RUNTIME_PROFILE: '0'
+      QWEN_RUNTIME_FULL_SUITE: '1'
+      QWEN_RUNTIME_VARIANT: eager_warmup_kernel
+      QWEN_RUNTIME_EAGER_WARMUP: '1'
+      MIOPEN_FIND_MODE: FAST
+      QWEN_RUNTIME_KERNEL_FIX: '1'
+    artifact_paths:
+    - artifacts/runtime-profile-tts-eager_warmup_kernel/**/*
     commands:
     - python3 "$${BUILDKITE_BUILD_CHECKOUT_PATH:?}/.buildkite/amd/scripts/profile-qwen-runtime.py"
       tts
