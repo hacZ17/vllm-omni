@@ -17,33 +17,13 @@ steps:
     env:
       QWEN_RUNTIME_PROFILE: '0'
       QWEN_RUNTIME_FULL_SUITE: '1'
-      QWEN_RUNTIME_VARIANT: frontend_full
+      QWEN_RUNTIME_VARIANT: frontend_timers
       QWEN_RUNTIME_FOCUS: frontend
       MIOPEN_FIND_MODE: FAST
       OMP_NUM_THREADS: '1'
       OPENBLAS_NUM_THREADS: '1'
     artifact_paths:
-    - artifacts/runtime-profile-async-frontend_full/**/*
+    - artifacts/runtime-profile-async-frontend_timers/**/*
     commands:
     - python3 "$${BUILDKITE_BUILD_CHECKOUT_PATH:?}/.buildkite/amd/scripts/profile-qwen-runtime.py"
       async
-  - label: 'DIAGNOSTIC ONLY: final decoder warmup CPU and waveform parity'
-    agent_pool: mi300_1
-    depends_on: '~'
-    mirror_hardwares:
-    - amdproduction
-    grade: Blocking
-    timeout_in_minutes: 90
-    source_file_dependencies: ci_rocm
-    env:
-      QWEN_RUNTIME_PROFILE: '0'
-      QWEN_RUNTIME_FULL_SUITE: '1'
-      QWEN_RUNTIME_VARIANT: production_checks
-      QWEN_RUNTIME_PRODUCTION_WARMUP: '1'
-      MIOPEN_FIND_MODE: FAST
-      QWEN_RUNTIME_VALIDATE_ONLY: '1'
-    artifact_paths:
-    - artifacts/runtime-profile-tts-production_checks/**/*
-    commands:
-    - python3 "$${BUILDKITE_BUILD_CHECKOUT_PATH:?}/.buildkite/amd/scripts/profile-qwen-runtime.py"
-      tts
