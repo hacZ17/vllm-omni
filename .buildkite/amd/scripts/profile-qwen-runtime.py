@@ -15,10 +15,13 @@ from pathlib import Path
 
 def prepare(kind: str, output: Path) -> tuple[Path, int]:
     profiling = os.environ.get("QWEN_RUNTIME_PROFILE", "1") == "1"
+    full_suite = os.environ.get("QWEN_RUNTIME_FULL_SUITE", "0") == "1"
     source = Path("tests/dfx/perf/tests")
     if kind == "tts":
         configs = json.loads((source / "test_tts.json").read_text())[:3]
         for config in configs:
+            if full_suite:
+                continue
             params = copy.deepcopy(config["benchmark_params"][1])
             # Preserve the C8 workload and its corresponding baseline/policy.
             for name in ("num_prompts", "max_concurrency"):
@@ -34,7 +37,8 @@ def prepare(kind: str, output: Path) -> tuple[Path, int]:
         filename = f"test_qwen3_omni_{kind}_chunk.json"
         configs = json.loads((source / filename).read_text())
         index = 2 if kind == "async" else 3
-        configs[0]["benchmark_params"] = [configs[0]["benchmark_params"][index]]
+        if not full_suite:
+            configs[0]["benchmark_params"] = [configs[0]["benchmark_params"][index]]
 
     for config in configs:
         profiler = {
@@ -81,6 +85,23 @@ def sample_resources(output: Path, stop: threading.Event) -> None:
                     values[str(path)] = path.read_text()
                 except OSError as exc:
                     values[str(path)] = str(exc)
+            # Process CPU ticks and thread counts only; never capture cmdline
+            # or environment, which can contain credentials.
+            processes = {}
+            for proc in Path("/proc").glob("[0-9]*"):
+                try:
+                    raw = (proc / "stat").read_text()
+                    name, fields = raw.split("(", 1)[1].rsplit(")", 1)
+                    fields = fields.split()
+                    processes[proc.name] = {
+                        "name": name,
+                        "parent": int(fields[1]),
+                        "cpu_ticks": int(fields[11]) + int(fields[12]),
+                        "threads": int(fields[17]),
+                    }
+                except (OSError, ValueError, IndexError):
+                    continue
+            values["processes"] = processes
             stream.write(json.dumps({"time_ns": time.time_ns(), "values": values}) + "\n")
             stream.flush()
             stop.wait(5)
@@ -101,7 +122,15 @@ def main() -> int:
         json.dumps(
             {
                 name: os.environ.get(name)
-                for name in ("BUILDKITE_COMMIT", "QWEN_RUNTIME_PROFILE", "QWEN_RUNTIME_VARIANT", "MIOPEN_FIND_MODE")
+                for name in (
+                    "BUILDKITE_COMMIT",
+                    "QWEN_RUNTIME_PROFILE",
+                    "QWEN_RUNTIME_VARIANT",
+                    "QWEN_RUNTIME_FULL_SUITE",
+                    "MIOPEN_FIND_MODE",
+                    "OMP_NUM_THREADS",
+                    "OPENBLAS_NUM_THREADS",
+                )
             },
             indent=2,
         )
@@ -109,12 +138,15 @@ def main() -> int:
     )
     if args.prepare_only:
         return 0
+    expected_tests, expected_results = count, count
+    if os.environ.get("QWEN_RUNTIME_FULL_SUITE", "0") == "1":
+        expected_tests, expected_results = {"async": (6, 6), "no_async": (4, 8), "tts": (8, 14)}[args.kind]
     env = os.environ | {
         "QWEN3_OMNI_ARTIFACT_DIR": str(output),
         "QWEN3_OMNI_CONFIG_FILE": str(config),
         "QWEN3_OMNI_EXPECTED_GPUS": "2",
-        "QWEN3_OMNI_EXPECTED_RESULTS": str(count),
-        "QWEN3_OMNI_EXPECTED_TESTS": str(count),
+        "QWEN3_OMNI_EXPECTED_RESULTS": str(expected_results),
+        "QWEN3_OMNI_EXPECTED_TESTS": str(expected_tests),
         "QWEN3_OMNI_REQUIRE_BASELINE": "1",
         "QWEN3_OMNI_MARK_EXPRESSION": "full_model and rocm and MI325 and cards_2",
         "QWEN3_OMNI_TEST_TARGET": "tests/dfx/perf/scripts/run_benchmark.py",
