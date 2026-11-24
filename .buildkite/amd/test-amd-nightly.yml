@@ -4,9 +4,9 @@ env:
   HF_HUB_DOWNLOAD_TIMEOUT: 300
   HF_HUB_ETAG_TIMEOUT: 60
 steps:
-- group: Validate existing PR10995 eager-MTP fix on ROCm; diagnostic only
+- group: Isolate remaining frontend and decoder latency; diagnostic only
   steps:
-  - label: 'DIAGNOSTIC ONLY: tts full suite FAST plus PR10995 eager-MTP fix'
+  - label: 'DIAGNOSTIC ONLY: frontend remaining latency'
     agent_pool: mi300_2
     depends_on: '~'
     mirror_hardwares:
@@ -16,12 +16,33 @@ steps:
     source_file_dependencies: ci_rocm
     env:
       QWEN_RUNTIME_PROFILE: '0'
-      QWEN_RUNTIME_FULL_SUITE: '1'
-      QWEN_RUNTIME_VARIANT: fast_kernel_fix
+      QWEN_RUNTIME_FULL_SUITE: '0'
+      QWEN_RUNTIME_VARIANT: frontend
+      QWEN_RUNTIME_FOCUS: frontend
       MIOPEN_FIND_MODE: FAST
-      QWEN_RUNTIME_KERNEL_FIX: '1'
+      OMP_NUM_THREADS: '1'
+      OPENBLAS_NUM_THREADS: '1'
     artifact_paths:
-    - artifacts/runtime-profile-tts-fast_kernel_fix/**/*
+    - artifacts/runtime-profile-async-frontend/**/*
+    commands:
+    - python3 "$${BUILDKITE_BUILD_CHECKOUT_PATH:?}/.buildkite/amd/scripts/profile-qwen-runtime.py"
+      async
+  - label: 'DIAGNOSTIC ONLY: decoder remaining latency'
+    agent_pool: mi300_2
+    depends_on: '~'
+    mirror_hardwares:
+    - amdproduction
+    grade: Blocking
+    timeout_in_minutes: 90
+    source_file_dependencies: ci_rocm
+    env:
+      QWEN_RUNTIME_PROFILE: '1'
+      QWEN_RUNTIME_FULL_SUITE: '0'
+      QWEN_RUNTIME_VARIANT: decoder
+      QWEN_RUNTIME_FOCUS: decoder
+      MIOPEN_FIND_MODE: FAST
+    artifact_paths:
+    - artifacts/runtime-profile-tts-decoder/**/*
     commands:
     - python3 "$${BUILDKITE_BUILD_CHECKOUT_PATH:?}/.buildkite/amd/scripts/profile-qwen-runtime.py"
       tts

@@ -19,9 +19,12 @@ from pathlib import Path
 def prepare(kind: str, output: Path) -> tuple[Path, int]:
     profiling = os.environ.get("QWEN_RUNTIME_PROFILE", "1") == "1"
     full_suite = os.environ.get("QWEN_RUNTIME_FULL_SUITE", "0") == "1"
+    focus = os.environ.get("QWEN_RUNTIME_FOCUS")
     source = Path("tests/dfx/perf/tests")
     if kind == "tts":
         configs = json.loads((source / "test_tts.json").read_text())[:3]
+        if focus == "decoder":
+            configs = configs[2:3]
         for config in configs:
             if full_suite:
                 continue
@@ -39,7 +42,7 @@ def prepare(kind: str, output: Path) -> tuple[Path, int]:
     else:
         filename = f"test_qwen3_omni_{kind}_chunk.json"
         configs = json.loads((source / filename).read_text())
-        index = 2 if kind == "async" else 3
+        index = 5 if focus == "frontend" else (2 if kind == "async" else 3)
         if not full_suite:
             configs[0]["benchmark_params"] = [configs[0]["benchmark_params"][index]]
 
@@ -51,11 +54,12 @@ def prepare(kind: str, output: Path) -> tuple[Path, int]:
             "torch_profiler_with_stack": False,
             "torch_profiler_use_gzip": True,
             "ignore_frontend": True,
-            "max_iterations": 1000,
+            "max_iterations": 100000 if focus == "decoder" else 1000,
         }
         if profiling:
             overrides = config["server_params"].setdefault("stage_overrides", {})
-            for stage in range(2 if kind == "tts" else 3):
+            stages = [1] if focus == "decoder" else range(2 if kind == "tts" else 3)
+            for stage in stages:
                 overrides.setdefault(str(stage), {})["profiler_config"] = profiler.copy()
         args = config["server_params"].setdefault("extra_cli_args", [])
         if kind != "tts" and "--stage-init-timeout" not in args:
@@ -167,6 +171,7 @@ def main() -> int:
                     "OMP_NUM_THREADS",
                     "OPENBLAS_NUM_THREADS",
                     "QWEN_RUNTIME_KERNEL_FIX",
+                    "QWEN_RUNTIME_FOCUS",
                 )
             },
             indent=2,
@@ -177,6 +182,26 @@ def main() -> int:
         return 0
     if os.environ.get("QWEN_RUNTIME_KERNEL_FIX") == "1":
         validate_existing_kernel_fix(output)
+    focus = os.environ.get("QWEN_RUNTIME_FOCUS")
+    if focus == "decoder":
+        import vllm.benchmarks.lib.endpoint_request_func as endpoint
+
+        path = Path(endpoint.__file__)
+        content = path.read_text()
+        start = content.index("async def async_request_profile(")
+        prefix, function = content[:start], content[start:]
+        old = "session.post(url=api_url, headers=headers)"
+        if function.count(old) != 1:
+            raise RuntimeError("Unexpected upstream profile request implementation")
+        path.write_text(
+            prefix + function.replace(old, 'session.post(url=api_url, headers=headers, json={"stages": [1]})', 1)
+        )
+    elif focus == "frontend":
+        checkout = Path(os.environ["BUILDKITE_BUILD_CHECKOUT_PATH"])
+        instrumentation = (checkout / ".buildkite/amd/scripts/profile-qwen-frontend.py").read_text()
+        path = Path("vllm_omni/entrypoints/openai/serving_chat.py")
+        path.write_text(path.read_text() + "\n" + instrumentation)
+        os.environ["QWEN_FRONTEND_PROFILE_DIR"] = str(output / "frontend")
     expected_tests, expected_results = count, count
     if os.environ.get("QWEN_RUNTIME_FULL_SUITE", "0") == "1":
         expected_tests, expected_results = {"async": (6, 6), "no_async": (4, 8), "tts": (8, 14)}[args.kind]
