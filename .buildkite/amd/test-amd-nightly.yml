@@ -1,41 +1,95 @@
-# Diagnostic branch only. Do not merge: these are not qualification jobs.
+# Diagnostic branch only. Do not merge: controlled MIOpen runtime comparison.
 env:
   VLLM_WORKER_MULTIPROC_METHOD: spawn
   HF_HUB_DOWNLOAD_TIMEOUT: 300
   HF_HUB_ETAG_TIMEOUT: 60
 steps:
-  - group: "Qwen runtime profiling for build 17377 (diagnostic only)"
+  - group: "Qwen runtime comparison for build 17377 (diagnostic only)"
     steps:
-      - label: "DIAGNOSTIC ONLY: async Qwen runtime trace"
+      - label: "DIAGNOSTIC ONLY: async MIOpen default"
         agent_pool: mi300_2
         depends_on: "~"
         mirror_hardwares: [amdproduction]
         grade: Blocking
         timeout_in_minutes: 90
         source_file_dependencies: ci_rocm
+        env:
+          QWEN_RUNTIME_PROFILE: "0"
+          QWEN_RUNTIME_VARIANT: "default"
         artifact_paths:
-          - artifacts/runtime-profile-async/**/*
+          - artifacts/runtime-profile-async-default/**/*
         commands:
           - python3 "$${BUILDKITE_BUILD_CHECKOUT_PATH:?}/.buildkite/amd/scripts/profile-qwen-runtime.py" async
-      - label: "DIAGNOSTIC ONLY: no_async Qwen runtime trace"
+      - label: "DIAGNOSTIC ONLY: async MIOpen fast"
         agent_pool: mi300_2
         depends_on: "~"
         mirror_hardwares: [amdproduction]
         grade: Blocking
         timeout_in_minutes: 90
         source_file_dependencies: ci_rocm
+        env:
+          QWEN_RUNTIME_PROFILE: "0"
+          QWEN_RUNTIME_VARIANT: "fast"
+          MIOPEN_FIND_MODE: "FAST"
         artifact_paths:
-          - artifacts/runtime-profile-no_async/**/*
+          - artifacts/runtime-profile-async-fast/**/*
+        commands:
+          - python3 "$${BUILDKITE_BUILD_CHECKOUT_PATH:?}/.buildkite/amd/scripts/profile-qwen-runtime.py" async
+      - label: "DIAGNOSTIC ONLY: no_async MIOpen default"
+        agent_pool: mi300_2
+        depends_on: "~"
+        mirror_hardwares: [amdproduction]
+        grade: Blocking
+        timeout_in_minutes: 90
+        source_file_dependencies: ci_rocm
+        env:
+          QWEN_RUNTIME_PROFILE: "0"
+          QWEN_RUNTIME_VARIANT: "default"
+        artifact_paths:
+          - artifacts/runtime-profile-no_async-default/**/*
         commands:
           - python3 "$${BUILDKITE_BUILD_CHECKOUT_PATH:?}/.buildkite/amd/scripts/profile-qwen-runtime.py" no_async
-      - label: "DIAGNOSTIC ONLY: tts Qwen runtime trace"
+      - label: "DIAGNOSTIC ONLY: no_async MIOpen fast"
         agent_pool: mi300_2
         depends_on: "~"
         mirror_hardwares: [amdproduction]
         grade: Blocking
         timeout_in_minutes: 90
         source_file_dependencies: ci_rocm
+        env:
+          QWEN_RUNTIME_PROFILE: "0"
+          QWEN_RUNTIME_VARIANT: "fast"
+          MIOPEN_FIND_MODE: "FAST"
         artifact_paths:
-          - artifacts/runtime-profile-tts/**/*
+          - artifacts/runtime-profile-no_async-fast/**/*
+        commands:
+          - python3 "$${BUILDKITE_BUILD_CHECKOUT_PATH:?}/.buildkite/amd/scripts/profile-qwen-runtime.py" no_async
+      - label: "DIAGNOSTIC ONLY: tts MIOpen default"
+        agent_pool: mi300_2
+        depends_on: "~"
+        mirror_hardwares: [amdproduction]
+        grade: Blocking
+        timeout_in_minutes: 90
+        source_file_dependencies: ci_rocm
+        env:
+          QWEN_RUNTIME_PROFILE: "0"
+          QWEN_RUNTIME_VARIANT: "default"
+        artifact_paths:
+          - artifacts/runtime-profile-tts-default/**/*
+        commands:
+          - python3 "$${BUILDKITE_BUILD_CHECKOUT_PATH:?}/.buildkite/amd/scripts/profile-qwen-runtime.py" tts
+      - label: "DIAGNOSTIC ONLY: tts MIOpen fast"
+        agent_pool: mi300_2
+        depends_on: "~"
+        mirror_hardwares: [amdproduction]
+        grade: Blocking
+        timeout_in_minutes: 90
+        source_file_dependencies: ci_rocm
+        env:
+          QWEN_RUNTIME_PROFILE: "0"
+          QWEN_RUNTIME_VARIANT: "fast"
+          MIOPEN_FIND_MODE: "FAST"
+        artifact_paths:
+          - artifacts/runtime-profile-tts-fast/**/*
         commands:
           - python3 "$${BUILDKITE_BUILD_CHECKOUT_PATH:?}/.buildkite/amd/scripts/profile-qwen-runtime.py" tts

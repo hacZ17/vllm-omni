@@ -14,6 +14,7 @@ from pathlib import Path
 
 
 def prepare(kind: str, output: Path) -> tuple[Path, int]:
+    profiling = os.environ.get("QWEN_RUNTIME_PROFILE", "1") == "1"
     source = Path("tests/dfx/perf/tests")
     if kind == "tts":
         configs = json.loads((source / "test_tts.json").read_text())[:3]
@@ -45,13 +46,15 @@ def prepare(kind: str, output: Path) -> tuple[Path, int]:
             "ignore_frontend": True,
             "max_iterations": 1000,
         }
-        overrides = config["server_params"].setdefault("stage_overrides", {})
-        for stage in range(2 if kind == "tts" else 3):
-            overrides.setdefault(str(stage), {})["profiler_config"] = profiler.copy()
+        if profiling:
+            overrides = config["server_params"].setdefault("stage_overrides", {})
+            for stage in range(2 if kind == "tts" else 3):
+                overrides.setdefault(str(stage), {})["profiler_config"] = profiler.copy()
         args = config["server_params"].setdefault("extra_cli_args", [])
         if kind != "tts" and "--stage-init-timeout" not in args:
             args.extend(["--stage-init-timeout", "900"])
-        config["benchmark_params"][0]["profile"] = True
+        if profiling:
+            config["benchmark_params"][0]["profile"] = True
     output.mkdir(parents=True, exist_ok=True)
     destination = output / "diagnostic-config.json"
     destination.write_text(json.dumps(configs, indent=2) + "\n")
@@ -89,10 +92,21 @@ def main() -> int:
     parser.add_argument("--prepare-only", action="store_true")
     parser.add_argument("--output", type=Path)
     args = parser.parse_args()
+    variant = os.environ.get("QWEN_RUNTIME_VARIANT", "profile")
     output = args.output or (
-        Path(os.environ["BUILDKITE_BUILD_CHECKOUT_PATH"]) / "artifacts" / f"runtime-profile-{args.kind}"
+        Path(os.environ["BUILDKITE_BUILD_CHECKOUT_PATH"]) / "artifacts" / f"runtime-profile-{args.kind}-{variant}"
     )
     config, count = prepare(args.kind, output.resolve())
+    (output / "experiment.json").write_text(
+        json.dumps(
+            {
+                name: os.environ.get(name)
+                for name in ("BUILDKITE_COMMIT", "QWEN_RUNTIME_PROFILE", "QWEN_RUNTIME_VARIANT", "MIOPEN_FIND_MODE")
+            },
+            indent=2,
+        )
+        + "\n"
+    )
     if args.prepare_only:
         return 0
     env = os.environ | {
@@ -111,7 +125,7 @@ def main() -> int:
     monitor = threading.Thread(target=sample_resources, args=(output, stop), daemon=True)
     monitor.start()
     try:
-        print("DIAGNOSTIC ONLY: profiling overhead invalidates performance qualification.", flush=True)
+        print(f"DIAGNOSTIC ONLY: variant={variant}; selected workloads, unchanged verdict rule.", flush=True)
         return subprocess.run(["bash", ".buildkite/amd/scripts/run-qwen3-omni-rocm-nightly.sh"], env=env).returncode
     finally:
         stop.set()
