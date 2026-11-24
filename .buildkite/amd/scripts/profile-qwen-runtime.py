@@ -147,6 +147,36 @@ def validate_existing_kernel_fix(output: Path) -> None:
     print(f"Patched eager-MTP kernels: {len(cases)} ROCm tests passed, no skips.", flush=True)
 
 
+def validate_production_warmup(output: Path) -> None:
+    checkout = Path(os.environ["BUILDKITE_BUILD_CHECKOUT_PATH"])
+    paths = [
+        "vllm_omni/model_executor/models/qwen3_tts/qwen3_tts_code2wav.py",
+        "tests/model_executor/models/qwen3_tts/test_qwen3_tts_code2wav.py",
+        "tests/model_executor/models/qwen3_tts/test_eager_decoder_warmup.py",
+    ]
+    hashes = {}
+    for name in paths:
+        shutil.copyfile(checkout / name, name)
+        hashes[name] = hashlib.sha256(Path(name).read_bytes()).hexdigest()
+    (output / "warmup-source-sha256.json").write_text(json.dumps(hashes, indent=2))
+    for label, test, marker, expected in [
+        ("cpu", paths[1], "core_model and cpu", None),
+        ("gpu", paths[2], "core_model and rocm and cards_1", 4),
+    ]:
+        xml = output / f"warmup-{label}.xml"
+        with (output / f"warmup-{label}.txt").open("w") as log:
+            result = subprocess.run(
+                ["python3", "-m", "pytest", "-q", test, "-m", marker, "--run-level", "core_model", f"--junitxml={xml}"],
+                stdout=log,
+                stderr=subprocess.STDOUT,
+            )
+        root = ET.parse(xml).getroot()
+        cases = list(root.iter("testcase"))
+        if result.returncode or not cases or list(root.iter("skipped")) or (expected and len(cases) != expected):
+            raise RuntimeError(f"Production warmup {label} checks did not all pass")
+        print(f"Production warmup {label}: {len(cases)} tests passed, no skips.", flush=True)
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("kind", choices=("async", "no_async", "tts"))
@@ -182,6 +212,8 @@ def main() -> int:
         return 0
     if os.environ.get("QWEN_RUNTIME_KERNEL_FIX") == "1":
         validate_existing_kernel_fix(output)
+    if os.environ.get("QWEN_RUNTIME_PRODUCTION_WARMUP") == "1":
+        validate_production_warmup(output)
     if os.environ.get("QWEN_RUNTIME_EAGER_WARMUP") == "1":
         checkout = Path(os.environ["BUILDKITE_BUILD_CHECKOUT_PATH"])
         instrumentation = (checkout / ".buildkite/amd/scripts/warm-qwen-eager-decoder.py").read_text()

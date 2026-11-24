@@ -6,7 +6,6 @@ import cProfile as _diag_cprofile  # noqa: N813
 import functools as _diag_functools
 import json as _diag_json
 import os as _diag_os
-import pstats as _diag_pstats
 import time as _diag_time
 import uuid as _diag_uuid
 from pathlib import Path as _DiagPath
@@ -26,7 +25,7 @@ def _diag_apply(self, *args, **kwargs):
     try:
         return profiler.runcall(_diag_apply_original, self, *args, **kwargs)
     finally:
-        stats = _diag_pstats.Stats(profiler)
+        profiler.create_stats()
         rows = [
             dict(
                 file=key[0],
@@ -37,7 +36,7 @@ def _diag_apply(self, *args, **kwargs):
                 self_seconds=value[2],
                 cumulative_seconds=value[3],
             )
-            for key, value in stats.stats.items()
+            for key, value in profiler.stats.items()
         ]
         rows.sort(key=lambda row: row["cumulative_seconds"], reverse=True)
         (_diag_dir / f"processor-{_diag_uuid.uuid4().hex}.json").write_text(
@@ -70,7 +69,7 @@ def _diag_wrap_media(original, name):
         try:
             return profiler.runcall(original, *args, **kwargs)
         finally:
-            stats = _diag_pstats.Stats(profiler)
+            profiler.create_stats()
             rows = [
                 dict(
                     file=key[0],
@@ -80,7 +79,7 @@ def _diag_wrap_media(original, name):
                     self_seconds=value[2],
                     cumulative_seconds=value[3],
                 )
-                for key, value in stats.stats.items()
+                for key, value in profiler.stats.items()
             ]
             rows.sort(key=lambda row: row["cumulative_seconds"], reverse=True)
             (_diag_dir / f"media_{name}-{_diag_uuid.uuid4().hex}.json").write_text(
