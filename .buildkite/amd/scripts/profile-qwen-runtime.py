@@ -214,6 +214,20 @@ def main() -> int:
         validate_existing_kernel_fix(output)
     if os.environ.get("QWEN_RUNTIME_PRODUCTION_WARMUP") == "1":
         validate_production_warmup(output)
+        if os.environ.get("QWEN_RUNTIME_READY_INTEGRATION") == "1":
+            ready_env = os.environ | {
+                "QWEN3_OMNI_ARTIFACT_DIR": str(output / "ready"),
+                "QWEN3_OMNI_EXPECTED_GPUS": "1",
+                "QWEN3_OMNI_EXPECTED_RESULTS": "0",
+                "QWEN3_OMNI_EXPECTED_TESTS": "4",
+                "QWEN3_OMNI_CONFIG_FILE": "",
+                "QWEN3_OMNI_MARK_EXPRESSION": "core_model and tts and rocm and MI325 and cards_1",
+                "QWEN3_OMNI_TEST_TARGET": "tests/e2e/online_serving/test_qwen3_tts_customvoice.py",
+                "QWEN3_OMNI_TIMEOUT": "30m",
+            }
+            status = subprocess.run(["bash", ".buildkite/amd/scripts/run-qwen3-omni-rocm-nightly.sh"], env=ready_env)
+            if status.returncode:
+                return status.returncode
         if os.environ.get("QWEN_RUNTIME_VALIDATE_ONLY") == "1":
             return 0
     if os.environ.get("QWEN_RUNTIME_EAGER_WARMUP") == "1":
