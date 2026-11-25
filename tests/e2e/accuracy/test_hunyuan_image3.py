@@ -210,7 +210,7 @@ _AR_DIT_RUNNER_PARAMS = (
 )
 
 
-# DiT-only: CUDA vs hunyuan_image3_dit_distill_it2i_ref.png;
+# DiT-only: CUDA/ROCm vs hunyuan_image3_dit_distill_it2i_ref.png;
 # NPU vs hunyuan_image3_dit_distill_it2i_ref_npu.png.
 # Acceptance floors, not calibration means. CUDA five-run BF16 calibration:
 # CUDA/H200: https://github.com/vllm-project/vllm-omni/pull/10408#issuecomment-6940430119
@@ -230,9 +230,21 @@ def _dit_it2i_reference_path() -> Path:
     return HUNYUAN_DIT_IMAGE_REF_PATH
 
 
+def _dit_deploy_config() -> str:
+    from vllm_omni.platforms import current_omni_platform
+
+    config = get_deploy_config_path("hunyuan_image3_dit.yaml")
+    if current_omni_platform.is_rocm():
+        # Match ROCm Hunyuan reliability inference: EP image requests currently
+        # time out. Keep TP=4 accuracy here; the separate EP startup test retains
+        # coverage of the canonical expert-parallel deploy configuration.
+        return modify_stage_config(config, {"stages": {0: {"parallel_config.enable_expert_parallel": False}}})
+    return config
+
+
 _DIT_SERVER_PARAMS = OmniServerParams(
     model=os.environ.get("HUNYUAN_IMAGE3_MODEL", MODEL_NAME),
-    stage_config_path=get_deploy_config_path("hunyuan_image3_dit.yaml"),
+    stage_config_path=_dit_deploy_config(),
     server_args=["--trust-remote-code", "--dtype", "bfloat16"],
     env_dict={"DIFFUSION_ATTENTION_BACKEND": "TORCH_SDPA"},
     stage_init_timeout=900,
@@ -462,7 +474,7 @@ def test_hunyuan_image3_ar_tp2_dit_tp2_it2i_offline(
     _assert_accuracy(image, cot, label, SIMILARITY_THRESHOLDS_BY_DEVICE)
 
 
-@hardware_test(res={"cuda": ["H100", "H200", "B200"], "npu": "A3"}, num_cards=4)
+@hardware_test(res={"cuda": ["H100", "H200", "B200"], "rocm": "MI325", "npu": "A3"}, num_cards=4)
 @pytest.mark.parametrize("omni_server_function", [_DIT_SERVER_PARAMS], indirect=True)
 @pytest.mark.full_model
 def test_hunyuan_image3_dit_tp4_it2i_online(

@@ -1062,6 +1062,29 @@ steps:
             fi
             exit "$$status"
 
+  - group: ":full_moon: HunyuanImage3 DiT Accuracy MI300 Nightly"
+    steps:
+      - label: "HunyuanImage3 DiT TP4 IT2I Accuracy"
+        agent_pool: mi300_4
+        depends_on: amd-build
+        mirror_hardwares: [amdproduction]
+        grade: Blocking
+        timeout_in_minutes: 90
+        source_file_dependencies: [diffusion_hunyuan_image3_accuracy, rocm_diffusion_nightly_runner]
+        env:
+          HUNYUAN_IMAGE3_MODEL: "tencent/HunyuanImage-3.0-Instruct-Distil"
+          DIFFUSION_ATTENTION_BACKEND: TORCH_SDPA
+          ACC_BENCH_RESULT_DIR: "$${BUILDKITE_BUILD_CHECKOUT_PATH:?}/artifacts/rocm-hunyuan-image3-dit-tp4/accuracy-results"
+        artifact_paths:
+          - artifacts/rocm-hunyuan-image3-dit-tp4/**/*
+          - tests/e2e/accuracy/artifacts/**/*
+        commands:
+          - >-
+            bash .buildkite/amd/scripts/run-rocm-diffusion-nightly.sh
+            4 1 75m rocm-hunyuan-image3-dit-tp4
+            tests/e2e/accuracy/test_hunyuan_image3.py::test_hunyuan_image3_dit_tp4_it2i_online
+            -m "full_model and diffusion and rocm and MI325 and cards_4"
+
   - group: ":full_moon: HunyuanImage3 LoRA MI300 Nightly"
     steps:
       - label: "HunyuanImage3 LoRA Accuracy"
